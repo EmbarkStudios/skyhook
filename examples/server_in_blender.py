@@ -1,4 +1,5 @@
-print("\n" * 30)
+# Clear the default system console
+print("\n" * 60)
 
 import bpy
 
@@ -8,10 +9,14 @@ import pkg_resources
 
 import traceback
 
-required = {"PySide2"}
+# Blender needs these packages to run skyhook
+required = {"PySide2", "requests", "git+https://github.com/EmbarkStudios/skyhook"}
+
+# Let's fine the missing packages
 installed = {pkg.key for pkg in pkg_resources.working_set}
 missing = required - installed
 
+# and if there are any, pip install them
 if missing:
     python = sys.executable
     subprocess.check_call([python, "-m", "pip", "install", *missing], stdout=subprocess.DEVNULL)
@@ -28,11 +33,11 @@ class SkyhookServer():
         self.thread, self.executor, self.server = \
             server.start_executor_server_in_thread(host_program=HostPrograms.blender,
                                                    load_modules=[blender])
-        self._app = QApplication.instance()
-        if not self._app:
-            self._app = QApplication(["blender"])
-        if self._app:
-            self._app.processEvents()
+        self.__app = QApplication.instance()
+        if not self.__app:
+            self.__app = QApplication(["blender"])
+        if self.__app:
+            self.__app.processEvents()
 
 if __name__ == "__main__":
     try:
