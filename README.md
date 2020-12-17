@@ -1,5 +1,5 @@
 <!--- FIXME: Pick an emoji! --->
-# 🌻 SkyHook
+# 🌴 SkyHook
 
 <!--- FIXME: Update crate, repo and CI workflow names here! Remove any that are not relevant --->
 [![Embark](https://img.shields.io/badge/embark-open%20source-blueviolet.svg)](https://embark.dev)
