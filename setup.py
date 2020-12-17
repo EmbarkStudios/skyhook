@@ -12,7 +12,7 @@ setuptools.setup(
     long_description="Engine and DCC communication system",
     long_description_content_type="text/markdown",
     url="https://github.com/EmbarkStudios/skyhook",
-    install_requires=['requests', 'pyside', 'pyside2', 'websockets'],
+    install_requires=['requests', 'pyside2', 'websockets'],
     packages=setuptools.find_packages(),
     classifiers=[
         "Operating System :: OS Independent",
