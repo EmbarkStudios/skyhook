@@ -20,6 +20,10 @@ You should be able to pip install this package like this:
 pip install git+https://github.com/EmbarkStudios/skyhook
 ```
 
+## Documentation
+
+Please find the documentation on the wiki: [https://github.com/EmbarkStudios/skyhook/wiki](https://github.com/EmbarkStudios/skyhook/wiki)
+
 
 ## Contributing
 
