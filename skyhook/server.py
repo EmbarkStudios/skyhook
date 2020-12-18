@@ -192,21 +192,21 @@ class Server(QObject):
             print(traceback.format_exc())
             print("Can't start the server")
 
-    def start_websocket_listening(self):
-        print("Starting websocket server on port: %s" % self.port)
-        try:
-            websocket_server = websockets.serve(self.__process_websocket_request, "127.0.0.1", self.port)
-            while self.__keep_running:
-                asyncio.get_event_loop().run_until_complete(websocket_server)
-                asyncio.get_event_loop().run_forever()
-        except:
-            print("Failed to create websocket server")
-
-    async def __process_websocket_request(self, websocket, path):
-        request = await websocket.recv()
-        print("I received this request: ", request)
-        print("I'm going to send back the word 'sushi' to the client" )
-        await websocket.send("sushi")
+    # def start_websocket_listening(self):
+    #     print("Starting websocket server on port: %s" % self.port)
+    #     try:
+    #         websocket_server = websockets.serve(self.__process_websocket_request, "127.0.0.1", self.port)
+    #         while self.__keep_running:
+    #             asyncio.get_event_loop().run_until_complete(websocket_server)
+    #             asyncio.get_event_loop().run_forever()
+    #     except:
+    #         print("Failed to create websocket server")
+    #
+    # async def __process_websocket_request(self, websocket, path):
+    #     request = await websocket.recv()
+    #     print("I received this request: ", request)
+    #     print("I'm going to send back the word 'sushi' to the client" )
+    #     await websocket.send("sushi")
 
     def stop_listening(self):
         """
@@ -497,17 +497,17 @@ def start_blocking_server(host_program="", load_modules=[]):
     skyhook_server.start_listening()
     return skyhook_server
 
-def start_blocking_websocket_server(host_program=""):
-    """
-    Starts a websocket server in the main thread. This will block your application. Use this when you don't care about
-    your application being locked up.
-
-    :param host_program:
-    :return:
-    """
-    skyhook_websocket_server = Server(host_program=host_program)
-    skyhook_websocket_server.start_websocket_listening()
-    return skyhook_websocket_server
+# def start_blocking_websocket_server(host_program=""):
+#     """
+#     Starts a websocket server in the main thread. This will block your application. Use this when you don't care about
+#     your application being locked up.
+#
+#     :param host_program:
+#     :return:
+#     """
+#     skyhook_websocket_server = Server(host_program=host_program)
+#     skyhook_websocket_server.start_websocket_listening()
+#     return skyhook_websocket_server
 
 def __kill_thread(thread, _):
     """

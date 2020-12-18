@@ -121,40 +121,6 @@ class Client(object):
 
         return payload
 
-class WebsocketClient(Client):
-    def __init__(self):
-        super(WebsocketClient, self).__init__()
-        self.uri = "ws://%s:%s" % (self.host_address, self.port)
-        print(self.uri)
-
-    def execute(self, command, parameters={}):
-        payload = self.__create_payload(command, parameters)
-        print(payload)
-
-        async def send():
-            async with websockets.connect(self.uri) as websocket:
-                await websocket.send(payload)
-                response = await websocket.recv()
-                return response
-
-        response = asyncio.get_event_loop().run_until_complete(send())
-        return response
-
-    def __create_payload(self, command, parameters):
-        """
-        Constructs the dictionary for the JSON payload that will be sent to the server
-
-        :param command: *string* name of the command
-        :param parameters: *dictionary*
-        :return: *dictionary*
-        """
-        payload = {
-            "FunctionName": command,
-            "Parameters": parameters
-        }
-
-        return payload
-
 
 class BlenderClient(Client):
     """
@@ -282,3 +248,36 @@ class UnrealClient(Client):
 
         return payload
 
+# class WebsocketClient(Client):
+#     def __init__(self):
+#         super(WebsocketClient, self).__init__()
+#         self.uri = "ws://%s:%s" % (self.host_address, self.port)
+#         print(self.uri)
+#
+#     def execute(self, command, parameters={}):
+#         payload = self.__create_payload(command, parameters)
+#         print(payload)
+#
+#         async def send():
+#             async with websockets.connect(self.uri) as websocket:
+#                 await websocket.send(payload)
+#                 response = await websocket.recv()
+#                 return response
+#
+#         response = asyncio.get_event_loop().run_until_complete(send())
+#         return response
+#
+#     def __create_payload(self, command, parameters):
+#         """
+#         Constructs the dictionary for the JSON payload that will be sent to the server
+#
+#         :param command: *string* name of the command
+#         :param parameters: *dictionary*
+#         :return: *dictionary*
+#         """
+#         payload = {
+#             "FunctionName": command,
+#             "Parameters": parameters
+#         }
+#
+#         return payload
