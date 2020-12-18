@@ -5,9 +5,9 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 if sys.version_info.major == 2:
-    requires = ['requests', 'pyside', 'websockets']
+    requires = ['requests', 'pyside']
 else:
-    requires = ['requests', 'pyside2', 'websockets']
+    requires = ['requests', 'pyside2']
 
 setuptools.setup(
     name="skyhook",
