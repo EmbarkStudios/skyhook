@@ -4,7 +4,7 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-if sys.version.major == 2:
+if sys.version_info.major == 2:
     requires = ['requests', 'pyside', 'websockets']
 else:
     requires = ['requests', 'pyside2', 'websockets']
