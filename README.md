@@ -7,7 +7,17 @@
 
 ## Engine and DCC communication system
 
+
 SkyHook was created to facilitate communication between DCCs, standalone applications, web browsers and game engines. As of right now, it’s working in Houdini, Blender, Maya and Unreal Engine.
+
+<table style="width: 100%">
+  <tr>
+    <td><img src="./wiki-images/blender_logo.png" height="50" /></td>
+    <td><img src="./wiki-images/houdinibadge.jpg" height="50" /></td>
+    <td><img src="./wiki-images/UE_Logo_Icon_Black.png" height="50" /></td>
+    <td><img src="./wiki-images/maya_logo.png" height="50" /></td>
+  </tr>
+ </table>
 
 SkyHook works both with Python 2.7.x and 3.x and you don’t need to have the same Python version across programs. For example, you can build a standalone application in Python 3.8.5 and use SkyHook to communicate with Maya’s Python 2.7. This makes it much easier to use than something like RPyC where even a minor version difference can stop it from working.
 
