@@ -11,14 +11,15 @@ import json
 import traceback
 
 from .logger import Logger
-logger = Logger()
 
+logger = Logger()
 
 try:
     from PySide2.QtCore import *
 except:
     from PySide.QtCore import *
 finally:
+    logger.error("Can't import either PySide or PySide2, this is needed for the server to run")
     pass
 
 try:
@@ -102,6 +103,7 @@ class Server(QObject):
     """
     is_terminated = Signal(str)
     exec_command_signal = Signal(str, dict)
+
     def __init__(self, host_program=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
         super(Server, self).__init__()
         self.port = self.__get_host_program_port(host_program)
@@ -421,7 +423,6 @@ class Server(QObject):
             return getattr(Ports, Constants.undefined)
 
 
-
 def make_result_json(success, return_value, command):
     """
     Constructs the a json for the server to send back
@@ -459,6 +460,7 @@ def start_server_in_thread(host_program="", load_modules=[], echo_response=False
 
     return [thread_object, skyhook_server]
 
+
 def start_executor_server_in_thread(host_program="", load_modules=[], echo_response=False):
     """
     Starts a server in a thread, but moves all executing functionality to a MainThreadExecutor object. Use this
@@ -481,6 +483,7 @@ def start_executor_server_in_thread(host_program="", load_modules=[], echo_respo
 
     return [thread_object, executor, skyhook_server]
 
+
 def start_python_thread_server(host_program="", load_modules=[], echo_response=False):
     """
     Starts a server in a separate Python thread if for whatever reason a QThread won't work
@@ -498,6 +501,7 @@ def start_python_thread_server(host_program="", load_modules=[], echo_response=F
 
     return skyhook_server
 
+
 def start_blocking_server(host_program="", load_modules=[], echo_response=False):
     """
     Starts a server in the main thread. This will block your application. Use this when you don't care about your
@@ -511,6 +515,7 @@ def start_blocking_server(host_program="", load_modules=[], echo_response=False)
     skyhook_server = Server(host_program=host_program, load_modules=load_modules, echo_response=echo_response)
     skyhook_server.start_listening()
     return skyhook_server
+
 
 # def start_blocking_websocket_server(host_program=""):
 #     """
