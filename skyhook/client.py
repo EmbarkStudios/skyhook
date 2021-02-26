@@ -194,9 +194,16 @@ class UnrealClient(Client):
             payload = self.__create_payload(command, parameters, self.__command_object_path)
             used_object_path = self.__command_object_path
 
+        response = requests.put(url, json=payload, headers=self.__headers).json()
 
-        requests.put(url, json=payload, headers=self.__headers).json()
-        response = self.__get_response(used_object_path)
+        try:
+            # UE 4.26: Returning an unreal.Array() that's not empty crashes the editor
+            # The (ugly) workaround for this is to return the list as a string eg "['/Game/Content/file', '/Game/Content/file2']"
+            # Then we try to eval the string here, if it succeeds, we'll have the list.
+            evalled_return_value = eval(response.get("ReturnValue"))
+            response = {"ReturnValue": evalled_return_value}
+        except:
+            pass
 
         if self.echo_payload():
             pprint.pprint(payload)
@@ -223,20 +230,6 @@ class UnrealClient(Client):
         :return: *string* Object path
         """
         return self.__command_object_path
-
-    def __get_response(self, object_path):
-        url = "http://%s:%s/remote/object/call" % (self.host_address, self.port)
-        payload = self.__create_payload("get_reply", {}, object_path)
-
-        response = requests.put(url, json=payload, headers=self.__headers).json()
-
-        try:
-            return_value = eval(response.get("ReturnValue"))
-            response = {'ReturnValue': return_value}
-        except:
-            pass
-
-        return response
 
     def __create_payload(self, command, parameters, object_path, echo_payload=True):
         payload = {
