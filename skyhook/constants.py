@@ -16,7 +16,7 @@ class Ports:
     maya = 65501
     houdini = 65502
     blender = 65504
-    unreal = 8080
+    unreal = 30010
 
 
 class HostPrograms:
