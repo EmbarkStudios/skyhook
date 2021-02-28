@@ -16,11 +16,10 @@ logger = Logger()
 
 try:
     from PySide2.QtCore import *
+    logger.info("Using PySide2")
 except:
     from PySide.QtCore import *
-finally:
-    logger.error("Can't import either PySide or PySide2, this is needed for the server to run")
-    pass
+    logger.error("Using PySide")
 
 try:
     # Python 3
