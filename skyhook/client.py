@@ -70,13 +70,11 @@ class Client(object):
         """
         Executes a given command for this client. The server will look for this command in the modules it has loaded
 
-        :param command: *string* or *function* The command name or the actual function that you can import from the
-        modules module
-        :param parameters: *dict* of the parameters (arguments) for the the command. These have to match the argument
-        names on the function in the module exactly
+        :param command: *string* or *function* The command name or the actual function object that you can import from the modules module
+        :param parameters: *dict* of the parameters (arguments) for the the command. These have to match the argument names on the function in the module exactly
         :return: *dict* of the response coming from the server
 
-        From a Skyhook server it looks like:
+        From a SkyHook server it looks like:
         {
              'ReturnValue': ['Camera', 'Cube', 'Cube.001', 'Light'],
              'Success': True,
@@ -179,8 +177,7 @@ class UnrealClient(Client):
         Will execute the command so Web Remote Control understands it.
 
         :param command: *string* command name
-        :param parameters: *dict* of the parameters (arguments) for the the command. These have to match the argument
-        names on the function in the module exactly
+        :param parameters: *dict* of the parameters (arguments) for the the command. These have to match the argument names on the function in the module exactly
         :param function: *bool* ignore, not used
         :param property: *bool* ignore, not used
         :return: *dict* of the response coming from Web Remote Control
@@ -198,8 +195,25 @@ class UnrealClient(Client):
 
         try:
             # UE 4.26: Returning an unreal.Array() that's not empty crashes the editor
+            # (https://udn.unrealengine.com/s/question/0D52L00005KOA24SAH/426-crashes-when-trying-to-return-an-unrealarray-over-web-remote-control-from-python)
             # The (ugly) workaround for this is to return the list as a string eg "['/Game/Content/file', '/Game/Content/file2']"
             # Then we try to eval the string here, if it succeeds, we'll have the list.
+
+            # However!
+            # This actually serves another purpose. It's much easier to return a dictionary from Unreal as a string compared
+            # to an unreal.Map. When returning the stringified dict, you don't need to explicitly tell Unreal what type
+            # the keys and values are. It also gets around errors like the following:
+            #
+            # -------------------------------------------------------------------------------------------------------
+            # `TypeError: Map: 'value' (Array (IntProperty)) cannot be a container element type (directly nested
+            # containers are not supported - consider using an intermediary struct instead)`
+            # -------------------------------------------------------------------------------------------------------
+            #
+            # You'd get this error in Uneal when you try to declare the return type of a function as `unreal.Map(str, unreal.Array(int)`
+            # When you'd want the value of the keys to be a list of ints, for example.
+
+            # On top of that, stringifying a dict also just lets you return a bunch of values that are not all the same type.
+            # As long as it can gets serialized into a JSON object, it will come out this end as a proper dictionary.
             evalled_return_value = eval(response.get("ReturnValue"))
             response = {"ReturnValue": evalled_return_value}
         except:
