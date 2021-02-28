@@ -31,7 +31,8 @@ The client just makes a a POST request to the server with a JSON payload. This i
    server_functionality
    server_commands
    client
-   unreal_engine
+   unreal_engine_server
+   unreal_engine_client
 
 
 

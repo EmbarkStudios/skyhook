@@ -9,11 +9,27 @@ Unreal is a bit of a different beast. It does support Python for editor related 
 
 Web Remote Control is a plugin you have first have to load before you can use it. It's still very much in beta right now and changing any functionality is not easy. After you've loaded the plugin, start it by typing ``WebControl.StartServer`` in the default ``Cmd`` console in the Output Log window. Or, if you want to always start with the project, enter ``WebControl.EnableServerOnStartup 1``.
 
-Loading a SkyHook module in Unreal is done by just importing it like normal. Assuming the code for the SkyHook module is in a file called "skyhook" in the Python folder (/Game/Content/Python), you can just do:
+Loading a SkyHook module in Unreal is done by just importing it like normal. I recommend putting the code for the SkyHook module in a file called "skyhook" in the Python folder  of your project (/Game/Content/Python). If it is, you can just do the following to load it:
 
 .. code-block:: python
 
     import skyhook
+
+
+If you want to load this automatically when your start your project, put the import statement in a file called ``init_unreal.py`` inside your Python folder.
+
+.. note::
+
+    When importing a Python module, Unreal (Python) creates a ``__pycache__`` folder in the same location you're loading your module from. In some cases leaving this folder in place can cause a crash when you close your editor. You can add the following couple of lines to your ``init_unreal.py`` file to clean up the pycache folder after importing.
+
+.. code-block:: python
+
+    import os
+
+    pycache_folder = os.path.join(os.path.dirname(__file__), "__pycache__")
+
+    if os.path.isdir(pycache_folder):
+        shutil.rmtree(pycache_folder)
 
 
 The SkyHook Unreal module
@@ -84,7 +100,10 @@ Things to keep in mind
 ----------------------
 
 .. warning::
-    In 4.26 and 4.26.1 there's a bug that causes your editor to crash if you're returning a non-empty ``unreal.Array``` over Web Remote Control from Python. It's been reported and hopefully will get fixed soon. This is an example function that will crash UE.
+    In 4.26 and 4.26.1 there's a bug that causes your editor to crash if you're returning a non-empty ``unreal.Array``` over Web Remote Control from Python. It's been reported and hopefully will get fixed soon.
+
+
+This is an example function that will crash UE.
 
 .. code-block:: python
 
