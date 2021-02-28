@@ -21,7 +21,7 @@ The SkyHook Unreal module
 
 Unreal has specific requirements to run Python code. So you have to keep that in mind when adding functionality to the SkyHook module. In order for it to be "seen" in Unreal you need to decorate your class and functions with specific Unreal decorators.
 
-Decorating the class with `unreal.uclass()`:
+Decorating the class with ``unreal.uclass()``:
 
 .. code-block:: python
 
@@ -32,7 +32,7 @@ Decorating the class with `unreal.uclass()`:
         pass
 
 
-Epic recommends marking all your functions as `static`:
+Epic recommends marking all your functions as ``static``:
 
 .. code-block:: python
 
@@ -57,10 +57,10 @@ If you want your function to accept parameters, you need to add them in the deco
 
 
 .. note::
-    You can not use Python's `list` in the decorator for the Unreal functions. Use `unreal.Array(type)`, eg: `unreal.Array(float)`.
+    You can not use Python's ``list`` in the decorator for the Unreal functions. Use ``unreal.Array(type)``, eg: ``unreal.Array(float)``.
 
 .. note::
-    You can not use Python's `dict` in the decorator for the Unreal functions. Use `unreal.Map(key type, value type)`, eg: `unreal.Map(str, int)`
+    You can not use Python's ``dict`` in the decorator for the Unreal functions. Use ``unreal.Map(key type, value type)``, eg: ``unreal.Map(str, int)``
 
 Add the return type in your decorator like this:
 
@@ -84,7 +84,7 @@ Things to keep in mind
 ----------------------
 
 .. warning::
-    In 4.26 and 4.26.1 there's a bug that causes your editor to crash if you're returning a non-empty `unreal.Array` over Web Remote Control from Python. It's been reported and hopefully will get fixed soon. This is an example function that will crash UE.
+    In 4.26 and 4.26.1 there's a bug that causes your editor to crash if you're returning a non-empty ``unreal.Array``` over Web Remote Control from Python. It's been reported and hopefully will get fixed soon. This is an example function that will crash UE.
 
 .. code-block:: python
 
@@ -106,7 +106,7 @@ This function WON'T crash your editor:
         #stringify it!
         return str(return_list)
 
-When the return value is sent back to the client, the client will first try to `eval` it to see if it contains a Python object. This happens in `skyhook.client.UnrealClient.execute`. While this was initially added as a bit of a hack to just get it working, it actually soon became useful in another way.
+When the return value is sent back to the client, the client will first try to ``eval`` it to see if it contains a Python object. This happens in ``skyhook.client.UnrealClient.execute```. While this was initially added as a bit of a hack to just get it working, it actually soon became useful in another way.
 
 Consider the following function. We want to return a dictionary where the values are lists of integers:
 
@@ -127,4 +127,4 @@ Unreal will throw the following error:
 
     `TypeError: Map: 'value' (Array (IntProperty)) cannot be a container element type (directly nested containers are not supported - consider using an intermediary struct instead)`
 
-However, when the `return_dict` is first turned into a string before returning it (be sure to also set your return type to string, `ret=str`) everything works just fine. Your client on the receiving end will turn it into a Python `dict` again.
+However, when the ``return_dict`` is first turned into a string before returning it (be sure to also set your return type to string, ``ret=str``) everything works just fine. Your client on the receiving end will turn it into a Python `dict` again.
