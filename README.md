@@ -27,7 +27,7 @@ SkyHook consist of 2 parts that can, but donâ€™t have to, work together. Thereâ€
 
 You should be able to pip install this package like this:
 ```batch
-pip install git+https://github.com/EmbarkStudios/skyhook
+pip install --upgrade git+https://github.com/EmbarkStudios/skyhook
 ```
 
 ## Documentation
