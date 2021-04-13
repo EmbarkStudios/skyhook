@@ -50,3 +50,14 @@ class Errors:
     IN_FUNCTION      = "An error occurred when executing the function"
     SERVER_COMMAND   = "An error occurred processing this server command"
     SERVER_RELOAD    = "An error occurred with reloading a module on the server"
+
+
+class UnrealTypes:
+    """
+    Unreal object types as strings
+    """
+    STATICMESH = "StaticMesh"
+    SKELETALMESH = "SkeletalMesh"
+    TEXTURE2D = "Texture2D"
+    MATERIAL = "Material"
+    MATERIALINSTANCE = "MaterialInstance"
