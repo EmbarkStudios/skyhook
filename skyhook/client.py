@@ -119,6 +119,16 @@ class Client(object):
 
         return payload
 
+class SubstancePainterClient(Client):
+    """
+    Custom client for Blender
+    """
+    def __init__(self):
+        super(SubstancePainterClient, self).__init__()
+
+        self.host_program = HostPrograms.substance_painter
+        self.port = Ports.substance_painter
+
 
 class BlenderClient(Client):
     """

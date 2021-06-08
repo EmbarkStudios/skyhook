@@ -8,7 +8,7 @@
 ## Engine and DCC communication system
 
 
-SkyHook was created to facilitate communication between DCCs, standalone applications, web browsers and game engines. As of right now, it’s working in Houdini, Blender, Maya and Unreal Engine.
+SkyHook was created to facilitate communication between DCCs, standalone applications, web browsers and game engines. As of right now, it’s working in Houdini, Blender, Maya, Substance Painter and Unreal Engine.
 
 <table style="width: 100%">
   <tr>
@@ -16,6 +16,7 @@ SkyHook was created to facilitate communication between DCCs, standalone applica
     <td><img src="./wiki-images/houdinibadge.jpg" height="50" /></td>
     <td><img src="./wiki-images/UE_Logo_Icon_Black.png" height="50" /></td>
     <td><img src="./wiki-images/maya_logo.png" height="50" /></td>
+    <td><img src="./wiki-images/substance_painter.png" height="50" /></td>
   </tr>
  </table>
 

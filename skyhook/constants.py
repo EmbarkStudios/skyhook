@@ -12,21 +12,23 @@ class Ports:
     """
     Ports that the host programs use and for the clients to connect to
     """
-    undefined = 65500
-    maya = 65501
-    houdini = 65502
-    blender = 65504
-    unreal = 30010
+    undefined         = 65500
+    maya              = 65501
+    houdini           = 65502
+    blender           = 65504
+    substance_painter = 65505
+    unreal            = 30010
 
 
 class HostPrograms:
     """
     List of host programs
     """
-    blender = "blender"
-    unreal  = "unreal"
-    maya    = "maya"
-    houdini = "houdini"
+    blender           = "blender"
+    unreal            = "unreal"
+    maya              = "maya"
+    houdini           = "houdini"
+    substance_painter = "substance_painter"
 
 
 class ServerCommands:
