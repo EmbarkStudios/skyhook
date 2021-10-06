@@ -7,7 +7,8 @@ try:
     import websockets
     import asyncio
 except:
-    print("failed to import websockets/asyncio")
+    pass
+    # print("failed to import websockets/asyncio")
 
 class Client(object):
     """

@@ -16,10 +16,10 @@ logger = Logger()
 
 try:
     from PySide2.QtCore import *
-    logger.info("Using PySide2")
+    # logger.info("Using PySide2")
 except:
     from PySide.QtCore import *
-    logger.error("Using PySide")
+    # logger.error("Using PySide")
 
 try:
     # Python 3
@@ -46,7 +46,8 @@ try:
     import websockets
     import asyncio
 except:
-    logger.warning("Can't import websockets/asyncio")
+    pass
+    # logger.warning("Can't import websockets/asyncio")
 
 
 from .constants import Constants, ServerCommands, Errors, Ports
