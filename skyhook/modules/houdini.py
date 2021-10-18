@@ -15,3 +15,8 @@ def say_hi_from_houdini():
 def create_node(path, type, name="NisseNode"):
     obj = hou.node(path)
     obj.createNode(type, name)
+
+
+def run_python_script(script_path):
+    import runpy
+    runpy.run_path(script_path, init_globals=globals(), run_name="__main__")

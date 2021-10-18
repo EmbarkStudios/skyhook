@@ -58,5 +58,11 @@ def execute_python(python_script):
     """
     exec python_script
 
+
+def run_python_script(script_path):
+    import runpy
+    runpy.run_path(script_path, init_globals=globals(), run_name="__main__")
+
+
 def warning(message):
     pm.warning(message)
