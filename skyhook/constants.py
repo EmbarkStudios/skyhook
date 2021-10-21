@@ -8,6 +8,13 @@ class Constants:
     undefined       = "undefined"
 
 
+class Results:
+    time            = "Time"
+    success         = "Success"
+    return_value    = "ReturnValue"
+    command         = "Command"
+
+
 class Ports:
     """
     Ports that the host programs use and for the clients to connect to

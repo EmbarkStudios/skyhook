@@ -50,7 +50,7 @@ except:
     # logger.warning("Can't import websockets/asyncio")
 
 
-from .constants import Constants, ServerCommands, Errors, Ports
+from .constants import Constants, Results, ServerCommands, Errors, Ports
 from .modules import core
 
 
@@ -440,10 +440,10 @@ def make_result_json(success, return_value, command):
     :return:
     """
     result_json = {
-        "Time": datetime.now().strftime("%H:%M:%S"),
-        "Success": success,
-        "ReturnValue": return_value,
-        "Command": command
+        Results.time: datetime.now().strftime("%H:%M:%S"),
+        Results.success: success,
+        Results.return_value: return_value,
+        Results.command: command
     }
 
     return result_json
