@@ -106,9 +106,17 @@ class Server(QObject):
 
     def __init__(self, host_program=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
         super(Server, self).__init__()
-        self.port = self.__get_host_program_port(host_program)
+
+        # if host_program is a dict like {"name": "maya", "port": 65510}, use those values
+        if isinstance(host_program, dict):
+            self.__host_program = host_program.get("name")
+            self.port = host_program.get("port")
+        else:
+            # otherwise grab pre-defined ports from constants
+            self.__host_program = host_program
+            self.port = self.__get_host_program_port(host_program)
+
         self.__keep_running = True
-        self.__host_program = host_program
 
         self.__use_main_thread_executor = use_main_thread_executor
         self.executor_reply = None
