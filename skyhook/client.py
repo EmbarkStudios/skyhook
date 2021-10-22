@@ -122,7 +122,7 @@ class Client(object):
 
 class SubstancePainterClient(Client):
     """
-    Custom client for Blender
+    Custom client for Substance Painter
     """
     def __init__(self):
         super(SubstancePainterClient, self).__init__()
