@@ -7,6 +7,8 @@ class Constants:
     module          = "_Module"
     undefined       = "undefined"
 
+    is_skyhook_module = "is_skyhook_module"
+
 
 class Results:
     time            = "Time"

@@ -32,11 +32,6 @@ def say_hello():
     return "I said hello in Blender"
 
 
-def run_python_script(script_path):
-    import runpy
-    runpy.run_path(script_path, init_globals=globals(), run_name="__main__")
-
-
 def __get_window_ctx():
     """
     Gets the Window Context for blender. Any functionality that adds something to the viewport needs this context. Use

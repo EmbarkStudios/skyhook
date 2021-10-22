@@ -49,6 +49,7 @@ def raw_maya(command, args=[], kwargs={}):
     result = func(*args, **kwargs)
     return str(result)
 
+
 def execute_python(python_script):
     """
     Executes a complete Python script
@@ -56,13 +57,12 @@ def execute_python(python_script):
     :param python_script: *string* Python code
     :return: None
     """
-    exec python_script
-
-
-def run_python_script(script_path):
-    import runpy
-    runpy.run_path(script_path, init_globals=globals(), run_name="__main__")
+    exec(python_script)
 
 
 def warning(message):
     pm.warning(message)
+
+
+def new_scene():
+    pm.newFile(force=True)

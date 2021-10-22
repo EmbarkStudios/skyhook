@@ -104,16 +104,14 @@ class Server(QObject):
     is_terminated = Signal(str)
     exec_command_signal = Signal(str, dict)
 
-    def __init__(self, host_program=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
+    def __init__(self, host_program=None, port=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
         super(Server, self).__init__()
 
-        # if host_program is a dict like {"name": "maya", "port": 65510}, use those values
-        if isinstance(host_program, dict):
-            self.__host_program = host_program.get("name")
-            self.port = host_program.get("port")
+        self.__host_program = host_program
+
+        if port:
+            self.port = port
         else:
-            # otherwise grab pre-defined ports from constants
-            self.__host_program = host_program
             self.port = self.__get_host_program_port(host_program)
 
         self.__keep_running = True
@@ -343,7 +341,7 @@ class Server(QObject):
 
         elif function_name == ServerCommands.SKY_HOTLOAD:
             modules = parameters_dict.get(Constants.module)
-            is_skyhook_module = parameters_dict.get("is_skyhook_module", True)
+            is_skyhook_module = parameters_dict.get(Constants.is_skyhook_module, True)
 
             hotloaded_modules = []
             for module_name in modules:
@@ -449,16 +447,17 @@ def make_result_json(success, return_value, command):
     return result_json
 
 
-def start_server_in_thread(host_program="", load_modules=[], echo_response=False):
+def start_server_in_thread(host_program="", port=None, load_modules=[], echo_response=False):
     """
     Starts a server in a separate QThread. Use this when working in Houdini or Maya.
 
     :param host_program: *string* name of the host program
+    :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :return: *QThread* and *Server*
     """
-    skyhook_server = Server(host_program=host_program, load_modules=load_modules, echo_response=echo_response)
+    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     thread_object = QThread()
     skyhook_server.is_terminated.connect(partial(__kill_thread, thread_object))
     skyhook_server.moveToThread(thread_object)
@@ -469,17 +468,18 @@ def start_server_in_thread(host_program="", load_modules=[], echo_response=False
     return [thread_object, skyhook_server]
 
 
-def start_executor_server_in_thread(host_program="", load_modules=[], echo_response=False):
+def start_executor_server_in_thread(host_program="", port=None, load_modules=[], echo_response=False):
     """
     Starts a server in a thread, but moves all executing functionality to a MainThreadExecutor object. Use this
     for a host program where executing code in a thread other than the main thread is not safe. Eg: Blender
 
     :param host_program: *string* name of the host program
+    :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :return: *QThread*, *MainThreadExecutor* and *Server*
     """
-    skyhook_server = Server(host_program=host_program, load_modules=load_modules,
+    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=True, echo_response=echo_response)
     executor = MainThreadExecutor(skyhook_server)
     skyhook_server.exec_command_signal.connect(executor.execute)
@@ -492,16 +492,17 @@ def start_executor_server_in_thread(host_program="", load_modules=[], echo_respo
     return [thread_object, executor, skyhook_server]
 
 
-def start_python_thread_server(host_program="", load_modules=[], echo_response=False):
+def start_python_thread_server(host_program="", port=None, load_modules=[], echo_response=False):
     """
     Starts a server in a separate Python thread if for whatever reason a QThread won't work
 
     :param host_program: *string* name of the host program
+    :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :return: *Server*
     """
-    skyhook_server = Server(host_program=host_program, load_modules=load_modules,
+    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=False, echo_response=echo_response)
     thread = threading.Thread(target=skyhook_server.start_listening)
     thread.setDaemon(True)
@@ -510,17 +511,18 @@ def start_python_thread_server(host_program="", load_modules=[], echo_response=F
     return skyhook_server
 
 
-def start_blocking_server(host_program="", load_modules=[], echo_response=False):
+def start_blocking_server(host_program="", port=None, load_modules=[], echo_response=False):
     """
     Starts a server in the main thread. This will block your application. Use this when you don't care about your
     application being locked up.
 
     :param host_program: *string* name of the host program
+    :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :return: *Server*
     """
-    skyhook_server = Server(host_program=host_program, load_modules=load_modules, echo_response=echo_response)
+    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     skyhook_server.start_listening()
     return skyhook_server
 
