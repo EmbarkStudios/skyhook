@@ -31,6 +31,7 @@ def say_hello():
     print("Hello from Blender")
     return "I said hello in Blender"
 
+
 def __get_window_ctx():
     """
     Gets the Window Context for blender. Any functionality that adds something to the viewport needs this context. Use
