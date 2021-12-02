@@ -202,7 +202,10 @@ class UnrealClient(Client):
             payload = self.__create_payload(command, parameters, self.__command_object_path)
             used_object_path = self.__command_object_path
 
-        response = requests.put(url, json=payload, headers=self.__headers).json()
+        try:
+            response = requests.put(url, json=payload, headers=self.__headers).json()
+        except requests.exceptions.ConnectionError:
+            response = {"ReturnValue": False}
 
         try:
             # UE 4.26: Returning an unreal.Array() that's not empty crashes the editor
