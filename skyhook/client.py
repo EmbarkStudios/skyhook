@@ -1,6 +1,6 @@
 import pprint
 
-from .constants import HostPrograms, Ports, ServerCommands
+from .constants import HostPrograms, Results, Ports, ServerCommands
 import requests
 
 try:
@@ -122,7 +122,7 @@ class Client(object):
 
 class SubstancePainterClient(Client):
     """
-    Custom client for Blender
+    Custom client for Substance Painter
     """
     def __init__(self):
         super(SubstancePainterClient, self).__init__()
@@ -228,8 +228,8 @@ class UnrealClient(Client):
 
             # On top of that, stringifying a dict also just lets you return a bunch of values that are not all the same type.
             # As long as it can gets serialized into a JSON object, it will come out this end as a proper dictionary.
-            evalled_return_value = eval(response.get("ReturnValue"))
-            response = {"ReturnValue": evalled_return_value}
+            evalled_return_value = eval(response.get(Results.return_value))
+            response = {Results.return_value: evalled_return_value}
         except:
             pass
 
