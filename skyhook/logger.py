@@ -35,7 +35,7 @@ class Logger(object):
 
     def __add_to_log(self, status, message, print_to_screen):
         time = datetime.datetime.now().strftime("%Y/%m/%d-%H:%M:%S")
-        line = "[%s] | %s | %s" % (time, status, message)
+        line = "SKYHOOK [%s] | %s | %s" % (time, status, message)
 
         with open(self.file_path, "a") as out_file:
             out_file.write(line + "\n")
