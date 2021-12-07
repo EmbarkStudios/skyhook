@@ -1,17 +1,28 @@
 import sys
 import setuptools
+import logging
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 if sys.version_info.major == 2:
-    requires = ['requests', 'pyside']
+    try:
+        import PySide
+        logging.log("PySide already exists for this environment, not installing it again")
+        requires = ['requests']
+    except:
+        requires = ['requests', 'pyside']
 else:
-    requires = ['requests', 'pyside2']
+    try:
+        import PySide2
+        logging.log("PySide2 already exists for this environment, not installing it again")
+        requires = ['requests']
+    except:
+        requires = ['requests', 'pyside2']
 
 setuptools.setup(
     name="skyhook",
-    version="1.0.0",
+    version="1.0.1",
     author="Niels Vaes",
     author_email="niels.vaes@embark-studios.com",
     description="Engine and DCC communication system",
