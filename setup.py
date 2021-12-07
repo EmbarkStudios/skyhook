@@ -1,6 +1,5 @@
 import sys
 import setuptools
-import logging
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -8,14 +7,12 @@ with open("README.md", "r") as fh:
 if sys.version_info.major == 2:
     try:
         import PySide
-        logging.log("PySide already exists for this environment, not installing it again")
         requires = ['requests']
     except:
         requires = ['requests', 'pyside']
 else:
     try:
         import PySide2
-        logging.log("PySide2 already exists for this environment, not installing it again")
         requires = ['requests']
     except:
         requires = ['requests', 'pyside2']
