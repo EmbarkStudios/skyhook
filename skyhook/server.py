@@ -1,54 +1,21 @@
 import sys
 
-import wsgiref.simple_server
-import threading
+from PySide2.QtCore import *
 from datetime import datetime
+from functools import partial
+from importlib import reload
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
 import importlib
 import inspect
 import types
-from functools import partial
 import json
 import traceback
+import threading
+import urllib.parse
 
 from .logger import Logger
-
 logger = Logger()
-
-try:
-    from PySide2.QtCore import *
-    # logger.info("Using PySide2")
-except:
-    from PySide.QtCore import *
-    # logger.error("Using PySide")
-
-try:
-    # Python 3
-    import urllib.parse as urlparse
-except:
-    # Python 2
-    import urlparse
-
-try:
-    # Python 3
-    from importlib import reload
-except:
-    pass
-
-try:
-    # Python 3
-    import http.server
-    http.server.BaseHTTPRequestHandler.address_string = lambda x: x.client_address[0]
-except:
-    # Python 2
-    __import__('BaseHTTPServer').BaseHTTPRequestHandler.address_string = lambda x: x.client_address[0]
-
-try:
-    import websockets
-    import asyncio
-except:
-    pass
-    # logger.warning("Can't import websockets/asyncio")
-
 
 from .constants import Constants, Results, ServerCommands, Errors, Ports
 from .modules import core
@@ -105,15 +72,12 @@ class Server(QObject):
     exec_command_signal = Signal(str, dict)
 
     def __init__(self, host_program=None, port=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
-        super(Server, self).__init__()
-
+        super().__init__()
         self.__host_program = host_program
-
         if port:
             self.port = port
         else:
             self.port = self.__get_host_program_port(host_program)
-
         self.__keep_running = True
 
         self.__use_main_thread_executor = use_main_thread_executor
@@ -126,11 +90,36 @@ class Server(QObject):
         for module_name in load_modules:
             self.hotload_module(module_name)
 
+    def start_listening(self):
+        """
+        Creates a RequestHandler and starts the listening for incoming requests. Will continue to listen for requests
+        until self.__keep_running is set to False
+
+        :return: None
+        """
+        def handler(*args):
+            SkyHookHTTPRequestHandler(skyhook_server=self, *args)
+
+        server = HTTPServer(("127.0.0.1", self.port), handler)
+        logger.info("Started SkyHook on port: %s" % self.port)
+        while self.__keep_running:
+            server.handle_request()
+        logger.info("Shutting down server")
+        server.server_close()
+
+    def stop_listening(self):
+        """
+        Stops listening for incoming requests. Also emits the is_terminated signal with "TERMINATED"
+
+        :return: None
+        """
+        self.__keep_running = False
+        self.is_terminated.emit("TERMINATED")
+
     def reload_modules(self):
         """
         Reloads all the currently loaded modules. This can also be called remotely by sending
-        ServerCommands.SKY_RELOAD_MODULES as the FunctionName. Will use importlib.reload if the server is running
-        in Python 3
+        ServerCommands.SKY_RELOAD_MODULES as the FunctionName.
 
         :return: None
         """
@@ -188,49 +177,6 @@ class Server(QObject):
             if module.__name__ == full_name:
                 self.__loaded_modules.remove(module)
 
-    def start_listening(self):
-        """
-        Starts the listening for incoming requests.
-
-        :return: None
-        """
-        try:
-            simple_server = wsgiref.simple_server.make_server("127.0.0.1", self.port, self.__process_request)
-            logger.info("Started skyhook on port: %s" % self.port)
-            while self.__keep_running:
-                simple_server.timeout = 0.1
-                simple_server.handle_request()
-            logger.info("Quitting")
-        except:
-            logger.error(traceback.format_exc())
-            logger.error("Can't start the server")
-        logger.info("Stopped listening")
-
-    # def start_websocket_listening(self):
-    #     logger.info("Starting websocket server on port: %s" % self.port)
-    #     try:
-    #         websocket_server = websockets.serve(self.__process_websocket_request, "127.0.0.1", self.port)
-    #         while self.__keep_running:
-    #             asyncio.get_event_loop().run_until_complete(websocket_server)
-    #             asyncio.get_event_loop().run_forever()
-    #     except:
-    #         logger.info("Failed to create websocket server")
-    #
-    # async def __process_websocket_request(self, websocket, path):
-    #     request = await websocket.recv()
-    #     logger.info("I received this request: ", request)
-    #     logger.info("I'm going to send back the word 'sushi' to the client" )
-    #     await websocket.send("sushi")
-
-    def stop_listening(self):
-        """
-        Stops listening for incoming requests. Also emits the is_terminated signal with "TERMINATED"
-
-        :return: None
-        """
-        self.__keep_running = False
-        self.is_terminated.emit("TERMINATED")
-
     def get_function_by_name(self, function_name, module_name=None):
         """
         Tries to find a function by name.
@@ -267,35 +213,7 @@ class Server(QObject):
         logger.info(reply_dict)
         self.executor_reply = reply_dict
 
-    def __process_request(self, environ, start_response):
-        """
-        This function is called on every incoming request. It calls the __filter_command function to see what
-        should happen with the request.
-
-        You shouldn't call this function directly.
-
-        :param environ:
-        :param start_response:
-        :return:
-        """
-        status = "200 OK"
-        headers = [("Content-type", "text/plain")]
-        start_response(status, headers)
-        request_body_size = int(environ.get('CONTENT_LENGTH', 0))
-        request_body = environ['wsgi.input'].read(request_body_size)
-        query = json.loads(request_body)
-
-        function = query.get(Constants.function_name)
-        parameters = query.get(Constants.parameters)
-
-        command_response = self.__filter_command(function, parameters)
-
-        if self.__echo_response:
-            logger.info(command_response)
-
-        return command_response
-
-    def __filter_command(self, function_name, parameters_dict):
+    def filter_and_execute_function(self, function_name, parameters_dict):
         """
         This function decides whether or the function call should come from one of the loaded modules or from the server.
         Every server function should start with SKY_
@@ -312,7 +230,7 @@ class Server(QObject):
             result_json = self.__process_module_command(function_name, parameters_dict)
 
         self.executor_reply = None
-        return [json.dumps(result_json).encode()]
+        return json.dumps(result_json).encode()
 
     def __process_server_command(self, function_name, parameters_dict={}):
         """
@@ -380,7 +298,7 @@ class Server(QObject):
 
         return result_json
 
-    def __process_module_command(self, function_name, parameters_dict):
+    def __process_module_command(self, function_name, parameters_dict, timeout=10.0):
         """
         Processes a command if the function in it was a module function.
 
@@ -393,9 +311,14 @@ class Server(QObject):
         if self.__use_main_thread_executor:
             logger.debug("Emitting exec_command_signal")
             self.exec_command_signal.emit(function_name, parameters_dict)
+            start_time = time.time()
 
             while self.executor_reply is None:
-                pass
+                # wait for the executor to reply, just keep checking the time to see if we've waited longer
+                # than timeout permits
+                current_time = time.time()
+                if current_time - start_time > timeout:
+                    self.executor_reply = make_result_json(success=False, return_value=Errors.TIMEOUT, command=function_name)
             return self.executor_reply
 
         module = parameters_dict.get(Constants.module)
@@ -428,10 +351,74 @@ class Server(QObject):
         except AttributeError:
             return getattr(Ports, Constants.undefined)
 
+class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
+    """
+    The class that handles requests coming into the server. It holds a reference to the Server class, so
+    it can call the Server functions after it has processed the request.
+
+    """
+    skyhook_server: Server # for PyCharm autocomplete
+
+    def __init__(self, request, client_address, server, skyhook_server=None):
+        self.skyhook_server = skyhook_server
+        super().__init__(request, client_address, server)
+
+    def do_GET(self):
+        """
+        Handle a GET request, this would be just a browser requesting a particular url
+        like: http://localhost:65500/%22echo_message%22&%7B%22message%22:%22Hooking%20into%20the%20Sky%22%7D
+        """
+        data = urllib.parse.unquote(self.path).lstrip("/")
+        parts = data.split("&")
+
+        try:
+            function = eval(parts[0])
+            parameters = json.loads(parts[1])
+        except NameError as err:
+            logger.warning(f"Got a GET request that I don't know what to do with")
+            logger.warning(f"Request was: GET {data}")
+            logger.warning(f"Error is   : {err}")
+            return
+
+        command_response = self.skyhook_server.filter_and_execute_function(function, parameters)
+        self.send_response_data("GET")
+        self.wfile.write(bytes(f"{command_response}".encode("utf-8")))
+
+    def do_POST(self):
+        """
+        Handle a post request, expects a JSON object to be sent in the POST data
+        """
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        decoded_data = post_data.decode('utf-8')
+        json_data = json.loads(decoded_data)
+
+        function = json_data.get(Constants.function_name)
+        parameters = json_data.get(Constants.parameters)
+
+        command_response = self.skyhook_server.filter_and_execute_function(function, parameters)
+        self.send_response_data("POST")
+        self.wfile.write(command_response)
+
+    def send_response_data(self, request_type):
+        """
+        Generates the response and appropriate headers to send back to the client
+
+        :param request_type: *string* GET or POST
+        """
+        self.send_response(200)
+        if request_type == "GET":
+            self.send_header('Content-type', 'text/html')
+        elif request_type == "POST":
+            self.send_header('Content-type', 'application/json')
+        else:
+            pass
+        self.end_headers()
+
 
 def make_result_json(success, return_value, command):
     """
-    Constructs the a json for the server to send back
+    Constructs the a json for the server to send back after a POST request
 
     :param success:
     :param return_value:
@@ -485,6 +472,7 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     skyhook_server.exec_command_signal.connect(executor.execute)
 
     thread_object = QThread()
+    skyhook_server.is_terminated.connect(partial(__kill_thread, thread_object))
     skyhook_server.moveToThread(thread_object)
     thread_object.started.connect(skyhook_server.start_listening)
     thread_object.start()
@@ -525,19 +513,6 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     skyhook_server.start_listening()
     return skyhook_server
-
-
-# def start_blocking_websocket_server(host_program=""):
-#     """
-#     Starts a websocket server in the main thread. This will block your application. Use this when you don't care about
-#     your application being locked up.
-#
-#     :param host_program:
-#     :return:
-#     """
-#     skyhook_websocket_server = Server(host_program=host_program)
-#     skyhook_websocket_server.start_websocket_listening()
-#     return skyhook_websocket_server
 
 def __kill_thread(thread, _):
     """
