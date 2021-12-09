@@ -282,7 +282,7 @@ class Server(QObject):
         elif function_name == ServerCommands.SKY_FUNCTION_HELP:
             function_name = parameters_dict.get("function_name")
             function = self.get_function_by_name(function_name)
-            arg_spec = inspect.getargspec(function)
+            arg_spec = inspect.getfullargspec(function)
 
             arg_spec_dict = {}
             arg_spec_dict["function_name"] = function_name
