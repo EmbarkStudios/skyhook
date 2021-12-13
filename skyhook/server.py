@@ -20,7 +20,6 @@ logger = Logger()
 from .constants import Constants, Results, ServerCommands, Errors, Ports
 from .modules import core
 
-
 class MainThreadExecutor(QObject):
     """
     Some programs, like Blender, don't like it when things get executed outside the main thread. Since the SkyHook
@@ -368,6 +367,10 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         Handle a GET request, this would be just a browser requesting a particular url
         like: http://localhost:65500/%22echo_message%22&%7B%22message%22:%22Hooking%20into%20the%20Sky%22%7D
         """
+        # browsers tend to send a GET for the favicon as well, which we don't care about
+        if self.path == "/favicon.ico":
+            return
+
         data = urllib.parse.unquote(self.path).lstrip("/")
         parts = data.split("&")
 
@@ -383,6 +386,8 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         command_response = self.skyhook_server.filter_and_execute_function(function, parameters)
         self.send_response_data("GET")
         self.wfile.write(bytes(f"{command_response}".encode("utf-8")))
+        # reply back to the browser with a javascript that will close the window (tab) it just opened
+        self.wfile.write(bytes("<script type='text/javascript'>window.open('','_self').close();</script>".encode("utf-8")))
 
     def do_POST(self):
         """
