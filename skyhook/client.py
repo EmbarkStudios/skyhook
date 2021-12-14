@@ -22,6 +22,7 @@ class Client(object):
 
         self.__echo_execution = True
         self.__echo_payload = True
+        self._is_executing = False
 
     def set_echo_execution(self, value):
         """
@@ -57,6 +58,14 @@ class Client(object):
         """
         return self.__echo_payload
 
+    def is_executing(self):
+        """
+        Retrun True or False if the client is still executing a command
+
+        :return: *bool*
+        """
+        return self._is_executing
+
     def is_host_online(self):
         """
         Convenience function to call on the client. "is_online" comes from the core module
@@ -90,6 +99,8 @@ class Client(object):
                             '/Game/Apple/Lighting/LUTs/RGBTable16x1_Level_01.RGBTable16x1_Level_01']
         }
         """
+        self._is_executing = True
+
         if callable(command):
             command = command.__name__
 
@@ -102,6 +113,8 @@ class Client(object):
 
         if self.echo_execution():
             pprint.pprint(response)
+
+        self._is_executing = False
 
         return response
 
@@ -193,6 +206,8 @@ class UnrealClient(Client):
         :param property: *bool* ignore, not used
         :return: *dict* of the response coming from Web Remote Control
         """
+        self._is_executing = True
+
         url = "http://%s:%s/remote/object/call" % (self.host_address, self.port)
 
         if command in dir(ServerCommands):
@@ -238,6 +253,8 @@ class UnrealClient(Client):
 
         if self.echo_execution():
             pprint.pprint(response)
+
+        self._is_executing = False
 
         return response
 
