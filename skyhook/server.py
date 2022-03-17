@@ -5,6 +5,7 @@ from datetime import datetime
 from functools import partial
 from importlib import reload
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import socket
 import time
 import importlib
 import inspect
@@ -81,6 +82,7 @@ class Server(QObject):
 
         self.__use_main_thread_executor = use_main_thread_executor
         self.executor_reply = None
+        self.__http_server = None
 
         self.__echo_response = echo_response
 
@@ -89,7 +91,7 @@ class Server(QObject):
         for module_name in load_modules:
             self.hotload_module(module_name)
 
-    def start_listening(self):
+    def start_listening(self, force_stop=False):
         """
         Creates a RequestHandler and starts the listening for incoming requests. Will continue to listen for requests
         until self.__keep_running is set to False
@@ -99,12 +101,14 @@ class Server(QObject):
         def handler(*args):
             SkyHookHTTPRequestHandler(skyhook_server=self, *args)
 
-        server = HTTPServer(("127.0.0.1", self.port), handler)
+        self.__http_server = HTTPServer(("127.0.0.1", self.port), handler)
         logger.info("Started SkyHook on port: %s" % self.port)
         while self.__keep_running:
-            server.handle_request()
+            self.__http_server.handle_request()
         logger.info("Shutting down server")
-        server.server_close()
+        self.__http_server.server_close()
+        logger.info("Server shut down")
+
 
     def stop_listening(self):
         """
@@ -113,6 +117,7 @@ class Server(QObject):
         :return: None
         """
         self.__keep_running = False
+        self.__http_server.server_close()
         self.is_terminated.emit("TERMINATED")
 
     def reload_modules(self):
@@ -421,6 +426,22 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
+def port_in_use(port_number, host="127.0.0.1"):
+    """
+    Checks if a specific ports is already in use by a different process. Useful if you want to check if you can start
+    a SkyHook server on a default port that might already be in use.
+
+    :param port_number: Port you want to check
+    :param host: Hostname, default is 127.0.0.1
+    :return:
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.125)
+    result = sock.connect_ex((host, port_number))
+    if result == 0:
+        return True
+    return False
+
 def make_result_json(success, return_value, command):
     """
     Constructs the a json for the server to send back after a POST request
@@ -449,6 +470,13 @@ def start_server_in_thread(host_program="", port=None, load_modules=[], echo_res
     :param echo_response: *bool* print the response the server is sending back
     :return: *QThread* and *Server*
     """
+    if host_program != "":
+        port = getattr(Ports, host_program)
+
+    if port_in_use(port):
+        logger.error(f"Port {port} is already in use, can't start server")
+        return [None, None]
+
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     thread_object = QThread()
     skyhook_server.is_terminated.connect(partial(__kill_thread, thread_object))
@@ -471,6 +499,13 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     :param echo_response: *bool* print the response the server is sending back
     :return: *QThread*, *MainThreadExecutor* and *Server*
     """
+    if host_program != "":
+        port = getattr(Ports, host_program)
+
+    if port_in_use(port):
+        logger.error(f"Port {port} is already in use, can't start server")
+        return [None, None, None]
+
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=True, echo_response=echo_response)
     executor = MainThreadExecutor(skyhook_server)
@@ -495,6 +530,13 @@ def start_python_thread_server(host_program="", port=None, load_modules=[], echo
     :param echo_response: *bool* print the response the server is sending back
     :return: *Server*
     """
+    if host_program != "":
+        port = getattr(Ports, host_program)
+
+    if port_in_use(port):
+        logger.error(f"Port {port} is already in use, can't start server")
+        return None
+
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=False, echo_response=echo_response)
     thread = threading.Thread(target=skyhook_server.start_listening)
@@ -515,6 +557,13 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
     :param echo_response: *bool* print the response the server is sending back
     :return: *Server*
     """
+    if host_program != "":
+        port = getattr(Ports, host_program)
+
+    if port_in_use(port):
+        logger.error(f"Port {port} is already in use, can't start server")
+        return None
+
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     skyhook_server.start_listening()
     return skyhook_server
