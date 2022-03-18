@@ -578,6 +578,7 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
     skyhook_server.start_listening()
     return skyhook_server
 
+
 def __kill_thread(thread, _):
     """
     Kills a QThread
