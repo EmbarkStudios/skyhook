@@ -67,9 +67,17 @@ class MainThreadExecutor(QObject):
 class Server(QObject):
     """
     Main SkyHook server class
+
+    There are 3 signals that you can hook into from the outside:
+    is_terminated: emits when stop_listening() is called
+    exec_command_signal: emits the command name and the parameter dictionary when a non-server command is
+                         executed through the MainThreadExecutor
+    command_signal: will always emit the command name and parameter dictionary,
+                    whether the command was a non-server or server command
     """
     is_terminated = Signal(str)
     exec_command_signal = Signal(str, dict)
+    command_signal = Signal(str, dict)
 
     def __init__(self, host_program=None, port=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
         super().__init__()
@@ -298,6 +306,7 @@ class Server(QObject):
 
             result_json = make_result_json(True, arg_spec_dict, ServerCommands.SKY_FUNCTION_HELP)
 
+        self.command_signal.emit(function_name, {})
         logger.success("Executed %s" % function_name)
 
         return result_json
@@ -332,6 +341,7 @@ class Server(QObject):
         try:
             return_value = function(**parameters_dict)
             success = True
+            self.command_signal.emit(function_name, parameters_dict)
         except Exception as err:
             str(traceback.format_exc())
             return_value = str(traceback.format_exc())
