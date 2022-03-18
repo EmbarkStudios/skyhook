@@ -99,7 +99,7 @@ class Server(QObject):
         for module_name in load_modules:
             self.hotload_module(module_name)
 
-    def start_listening(self, force_stop=False):
+    def start_listening(self):
         """
         Creates a RequestHandler and starts the listening for incoming requests. Will continue to listen for requests
         until self.__keep_running is set to False
