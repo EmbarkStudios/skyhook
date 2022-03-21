@@ -4,6 +4,9 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+# any data files that match this pattern will be include in the build
+data_files_to_include = ["*.png"]
+
 if sys.version_info.major == 2:
     try:
         import PySide
@@ -28,6 +31,9 @@ setuptools.setup(
     url="https://github.com/EmbarkStudios/skyhook",
     install_requires=requires,
     packages=setuptools.find_packages(),
+    package_data={
+        "": data_files_to_include,
+    },
     classifiers=[
         "Operating System :: OS Independent",
     ]
