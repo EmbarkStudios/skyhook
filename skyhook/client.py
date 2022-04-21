@@ -14,11 +14,11 @@ class Client(object):
     """
     Base client from which all other Clients will inherit
     """
-    def __init__(self):
+    def __init__(self, port=Ports.undefined, host_address="127.0.0.1"):
         super(Client, self).__init__()
 
-        self.host_address = "127.0.0.1"
-        self.port = 65500
+        self.host_address = host_address
+        self.port = port
 
         self.__echo_execution = True
         self.__echo_payload = True
@@ -137,44 +137,36 @@ class SubstancePainterClient(Client):
     """
     Custom client for Substance Painter
     """
-    def __init__(self):
-        super(SubstancePainterClient, self).__init__()
-
+    def __init__(self, port=Ports.substance_painter, host_address="127.0.0.1"):
+        super(SubstancePainterClient, self).__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.substance_painter
-        self.port = Ports.substance_painter
 
 
 class BlenderClient(Client):
     """
     Custom client for Blender
     """
-    def __init__(self):
-        super(BlenderClient, self).__init__()
-
+    def __init__(self, port=Ports.blender, host_address="127.0.0.1"):
+        super(BlenderClient, self).__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.blender
-        self.port = Ports.blender
 
 
 class MayaClient(Client):
     """
     Custom client for Maya
     """
-    def __init__(self):
-        super(MayaClient, self).__init__()
-
+    def __init__(self, port=Ports.maya, host_address="127.0.0.1"):
+        super(MayaClient, self).__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.maya
-        self.port = Ports.maya
 
 
 class HoudiniClient(Client):
     """
     Custom client for Houdini
     """
-    def __init__(self):
-        super(HoudiniClient, self).__init__()
-
+    def __init__(self, port=Ports.houdini, host_address="127.0.0.1"):
+        super(HoudiniClient, self).__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.houdini
-        self.port = Ports.houdini
 
 
 class UnrealClient(Client):
@@ -187,14 +179,13 @@ class UnrealClient(Client):
     is loaded.
 
     """
-    def __init__(self):
-        super(UnrealClient, self).__init__()
 
+    def __init__(self, port=Ports.unreal, host_address="127.0.0.1"):
+        super(UnrealClient, self).__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.unreal
         self.__command_object_path = "/Engine/PythonTypes.Default__SkyHookCommands"
         self.__server_command_object_path = "/Engine/PythonTypes.Default__SkyHookServerCommands"
         self.__headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-        self.port = Ports.unreal
 
     def execute(self, command, parameters={}, function=True, property=False):
         """
