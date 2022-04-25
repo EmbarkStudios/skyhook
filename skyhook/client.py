@@ -138,7 +138,7 @@ class SubstancePainterClient(Client):
     Custom client for Substance Painter
     """
     def __init__(self, port=Ports.substance_painter, host_address="127.0.0.1"):
-        super(SubstancePainterClient, self).__init__(port=port, host_address=host_address)
+        super().__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.substance_painter
 
 
@@ -147,7 +147,7 @@ class BlenderClient(Client):
     Custom client for Blender
     """
     def __init__(self, port=Ports.blender, host_address="127.0.0.1"):
-        super(BlenderClient, self).__init__(port=port, host_address=host_address)
+        super().__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.blender
 
 
@@ -156,7 +156,7 @@ class MayaClient(Client):
     Custom client for Maya
     """
     def __init__(self, port=Ports.maya, host_address="127.0.0.1"):
-        super(MayaClient, self).__init__(port=port, host_address=host_address)
+        super().__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.maya
 
 
@@ -165,7 +165,7 @@ class HoudiniClient(Client):
     Custom client for Houdini
     """
     def __init__(self, port=Ports.houdini, host_address="127.0.0.1"):
-        super(HoudiniClient, self).__init__(port=port, host_address=host_address)
+        super().__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.houdini
 
 
@@ -181,7 +181,7 @@ class UnrealClient(Client):
     """
 
     def __init__(self, port=Ports.unreal, host_address="127.0.0.1"):
-        super(UnrealClient, self).__init__(port=port, host_address=host_address)
+        super().__init__(port=port, host_address=host_address)
         self.host_program = HostPrograms.unreal
         self.__command_object_path = "/Engine/PythonTypes.Default__SkyHookCommands"
         self.__server_command_object_path = "/Engine/PythonTypes.Default__SkyHookServerCommands"
