@@ -362,8 +362,8 @@ class Server(QObject):
         """
         try:
             return getattr(Ports, host_program)
-        except AttributeError:
-            return getattr(Ports, Constants.undefined)
+        except Exception:
+            return getattr(Ports, Ports.undefined)
 
 class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
     """
@@ -514,6 +514,9 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     if host_program != "":
         port = getattr(Ports, host_program)
 
+    if port is None:
+        port = getattr(Ports, Ports.undefined)
+
     if port_in_use(port):
         logger.error(f"Port {port} is already in use, can't start server")
         return [None, None, None]
@@ -545,6 +548,9 @@ def start_python_thread_server(host_program="", port=None, load_modules=[], echo
     if host_program != "":
         port = getattr(Ports, host_program)
 
+    if port is None:
+        port = getattr(Ports, Ports.undefined)
+
     if port_in_use(port):
         logger.error(f"Port {port} is already in use, can't start server")
         return None
@@ -571,6 +577,9 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
     """
     if host_program != "":
         port = getattr(Ports, host_program)
+
+    if port is None:
+        port = getattr(Ports, Ports.undefined)
 
     if port_in_use(port):
         logger.error(f"Port {port} is already in use, can't start server")
