@@ -373,8 +373,9 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
     """
     skyhook_server: Server # for PyCharm autocomplete
 
-    def __init__(self, request, client_address, server, skyhook_server=None):
+    def __init__(self, request, client_address, server, skyhook_server=None, reply_with_auto_close=True):
         self.skyhook_server = skyhook_server
+        self.reply_with_auto_close = reply_with_auto_close
         super().__init__(request, client_address, server)
 
     def do_GET(self):
@@ -401,8 +402,9 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         command_response = self.skyhook_server.filter_and_execute_function(function, parameters)
         self.send_response_data("GET")
         self.wfile.write(bytes(f"{command_response}".encode("utf-8")))
-        # reply back to the browser with a javascript that will close the window (tab) it just opened
-        self.wfile.write(bytes("<script type='text/javascript'>window.open('','_self').close();</script>".encode("utf-8")))
+        if self.reply_with_auto_close:
+            # reply back to the browser with a javascript that will close the window (tab) it just opened
+            self.wfile.write(bytes("<script type='text/javascript'>window.open('','_self').close();</script>".encode("utf-8")))
 
     def do_POST(self):
         """
