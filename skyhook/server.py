@@ -515,7 +515,7 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
         port = getattr(Ports, host_program)
 
     if port is None:
-        port = getattr(Ports, Ports.undefined)
+        port = getattr(Ports, Constants.undefined)
 
     if port_in_use(port):
         logger.error(f"Port {port} is already in use, can't start server")
@@ -549,7 +549,7 @@ def start_python_thread_server(host_program="", port=None, load_modules=[], echo
         port = getattr(Ports, host_program)
 
     if port is None:
-        port = getattr(Ports, Ports.undefined)
+        port = getattr(Ports, Constants.undefined)
 
     if port_in_use(port):
         logger.error(f"Port {port} is already in use, can't start server")
@@ -579,7 +579,7 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
         port = getattr(Ports, host_program)
 
     if port is None:
-        port = getattr(Ports, Ports.undefined)
+        port = getattr(Ports, Constants.undefined)
 
     if port_in_use(port):
         logger.error(f"Port {port} is already in use, can't start server")
