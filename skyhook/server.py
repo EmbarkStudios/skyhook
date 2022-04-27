@@ -363,7 +363,7 @@ class Server(QObject):
         try:
             return getattr(Ports, host_program)
         except Exception:
-            return getattr(Ports, Ports.undefined)
+            return getattr(Ports, Constants.undefined)
 
 class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
     """
