@@ -14,11 +14,12 @@ class Client(object):
     """
     Base client from which all other Clients will inherit
     """
-    def __init__(self, port=Ports.undefined, host_address="127.0.0.1"):
+    def __init__(self, port=Ports.undefined, host_address="127.0.0.1", timeout=1):
         super(Client, self).__init__()
 
         self.host_address = host_address
         self.port = port
+        self.timeout = timeout
 
         self.__echo_execution = True
         self.__echo_payload = True
@@ -76,12 +77,13 @@ class Client(object):
         return response.get("Success")
 
 
-    def execute(self, command, parameters={}):
+    def execute(self, command, parameters={}, timeout=0):
         """
         Executes a given command for this client. The server will look for this command in the modules it has loaded
 
         :param command: *string* or *function* The command name or the actual function object that you can import from the modules module
         :param parameters: *dict* of the parameters (arguments) for the the command. These have to match the argument names on the function in the module exactly
+        :param timeout: *float* time in seconds after which the request will timeout. If not set here, self.time_out will be used (1.5 by default)
         :return: *dict* of the response coming from the server
 
         From a SkyHook server it looks like:
@@ -100,13 +102,15 @@ class Client(object):
         }
         """
         self._is_executing = True
+        if timeout <= 0:
+            timeout = self.timeout
 
         if callable(command):
             command = command.__name__
 
         url = "http://%s:%s" % (self.host_address, self.port)
         payload = self.__create_payload(command, parameters)
-        response = requests.post(url, json=payload).json()
+        response = requests.post(url, json=payload, timeout=timeout).json()
 
         if self.echo_payload():
             pprint.pprint(payload)
@@ -187,17 +191,20 @@ class UnrealClient(Client):
         self.__server_command_object_path = "/Engine/PythonTypes.Default__SkyHookServerCommands"
         self.__headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
 
-    def execute(self, command, parameters={}, function=True, property=False):
+    def execute(self, command, parameters={}, timeout=0, function=True, property=False):
         """
         Will execute the command so Web Remote Control understands it.
 
         :param command: *string* command name
         :param parameters: *dict* of the parameters (arguments) for the the command. These have to match the argument names on the function in the module exactly
+        :param timeout: *float* time in seconds after which the request will timeout. If not set here, self.time_out will be used (1.5 by default)
         :param function: *bool* ignore, not used
         :param property: *bool* ignore, not used
         :return: *dict* of the response coming from Web Remote Control
         """
         self._is_executing = True
+        if timeout <= 0:
+            timeout = self.timeout
 
         url = "http://%s:%s/remote/object/call" % (self.host_address, self.port)
 
@@ -209,7 +216,7 @@ class UnrealClient(Client):
             used_object_path = self.__command_object_path
 
         try:
-            response = requests.put(url, json=payload, headers=self.__headers).json()
+            response = requests.put(url, json=payload, headers=self.__headers, timeout=timeout).json()
         except requests.exceptions.ConnectionError:
             response = {"ReturnValue": False}
 
