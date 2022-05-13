@@ -14,16 +14,33 @@ class Client(object):
     """
     Base client from which all other Clients will inherit
     """
-    def __init__(self, port=Ports.undefined, host_address="127.0.0.1", timeout=1):
+    def __init__(self, port=Ports.undefined, host_address="127.0.0.1"):
         super(Client, self).__init__()
 
         self.host_address = host_address
         self.port = port
-        self.timeout = timeout
 
+        self.__timeout = 1000
         self.__echo_execution = True
         self.__echo_payload = True
         self._is_executing = False
+
+    def set_timeout(self, value):
+        """
+        If set to anything bigger than 0, will time out the connection to the server after this value in seconds
+
+        :param value: *float*
+        :return: None
+        """
+        self.__timeout = value
+
+    def timeout(self):
+        """
+        Return the current timeout value
+
+        :return: *float*
+        """
+        return self.__timeout
 
     def set_echo_execution(self, value):
         """
@@ -103,7 +120,7 @@ class Client(object):
         """
         self._is_executing = True
         if timeout <= 0:
-            timeout = self.timeout
+            timeout = self.__timeout
 
         if callable(command):
             command = command.__name__
@@ -204,7 +221,7 @@ class UnrealClient(Client):
         """
         self._is_executing = True
         if timeout <= 0:
-            timeout = self.timeout
+            timeout = self.timeout()
 
         url = "http://%s:%s/remote/object/call" % (self.host_address, self.port)
 
