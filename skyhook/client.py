@@ -91,7 +91,7 @@ class Client(object):
         :return: *bool*
         """
         response = self.execute("is_online", {})
-        return response.get("Success")
+        return response.get(Results.return_value)
 
 
     def execute(self, command, parameters={}, timeout=0):
