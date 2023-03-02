@@ -1,6 +1,7 @@
 import pprint
+from datetime import datetime
 
-from .constants import HostPrograms, Results, Ports, ServerCommands
+from .constants import HostPrograms, Results, Ports, ServerCommands, Errors
 import requests
 
 try:
@@ -91,7 +92,7 @@ class Client(object):
         :return: *bool*
         """
         response = self.execute("is_online", {})
-        return response.get(Results.return_value)
+        return response.get(Results.return_value) is True
 
 
     def execute(self, command, parameters={}, timeout=0):
@@ -127,7 +128,21 @@ class Client(object):
 
         url = "http://%s:%s" % (self.host_address, self.port)
         payload = self.__create_payload(command, parameters)
-        response = requests.post(url, json=payload, timeout=timeout).json()
+
+
+        # set the response dictionary to be NO_RESPONSE
+        response = {
+            Results.time: datetime.now().strftime("%H:%M:%S"),
+            Results.success: False,
+            Results.return_value: Errors.NO_RESPONSE,
+            Results.command: command
+        }
+
+        try:
+            # the response
+            response = requests.post(url, json=payload, timeout=timeout).json()
+        except requests.exceptions.ConnectionError as err:
+            response[Results.return_value] = "\n".join([Errors.CANT_REACH_SERVER, str(err)])
 
         if self.echo_payload():
             pprint.pprint(payload)
@@ -235,7 +250,7 @@ class UnrealClient(Client):
         try:
             response = requests.put(url, json=payload, headers=self.__headers, timeout=timeout).json()
         except requests.exceptions.ConnectionError:
-            response = {"ReturnValue": False}
+            response = {Results.return_value: Errors.CANT_REACH_SERVER}
 
         try:
             # UE 4.26: Returning an unreal.Array() that's not empty crashes the editor
