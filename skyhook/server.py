@@ -456,7 +456,7 @@ def port_in_use(port_number, host="127.0.0.1"):
 
 def make_result_json(success, return_value, command):
     """
-    Constructs the a json for the server to send back after a POST request
+    Constructs a json for the server to send back after a POST request
 
     :param success:
     :param return_value:

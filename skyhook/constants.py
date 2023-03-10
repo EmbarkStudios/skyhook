@@ -57,12 +57,14 @@ class Errors:
     """
     Errors when things go wrong
     """
+    class SkyHookCantReachServer(Exception):
+        pass
+
     CALLING_FUNCTION  = "ERROR 0x1: An error occurred when calling the function"
     IN_FUNCTION       = "ERROR 0x2: An error occurred when executing the function"
     SERVER_COMMAND    = "ERROR 0x3: An error occurred processing this server command"
     SERVER_RELOAD     = "ERROR 0x4: An error occurred with reloading a module on the server"
     TIMEOUT           = "ERROR 0x5: The command timed out"
-    CANT_REACH_SERVER = "ERROR 0x6: The client couldn't connect to the server"
     NO_RESPONSE       = "ERROR 0x7: No response was generated, is the function on the server returning anything?"
 
 

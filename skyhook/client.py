@@ -91,8 +91,11 @@ class Client(object):
 
         :return: *bool*
         """
-        response = self.execute("is_online", {})
-        return response.get(Results.return_value) is True
+        try:
+            response = self.execute("is_online", {})
+            return response.get(Results.return_value) is True
+        except Errors.SkyHookCantReachServer:
+            return False
 
 
     def execute(self, command, parameters={}, timeout=0):
@@ -129,20 +132,10 @@ class Client(object):
         url = "http://%s:%s" % (self.host_address, self.port)
         payload = self.__create_payload(command, parameters)
 
-
-        # set the response dictionary to be NO_RESPONSE
-        response = {
-            Results.time: datetime.now().strftime("%H:%M:%S"),
-            Results.success: False,
-            Results.return_value: Errors.NO_RESPONSE,
-            Results.command: command
-        }
-
         try:
-            # the response
             response = requests.post(url, json=payload, timeout=timeout).json()
         except requests.exceptions.ConnectionError as err:
-            response[Results.return_value] = "\n".join([Errors.CANT_REACH_SERVER, str(err)])
+            raise Errors.SkyHookCantReachServer(f"Can't reach server {self.host_address} on port {self.port}")
 
         if self.echo_payload():
             pprint.pprint(payload)
@@ -250,7 +243,7 @@ class UnrealClient(Client):
         try:
             response = requests.put(url, json=payload, headers=self.__headers, timeout=timeout).json()
         except requests.exceptions.ConnectionError:
-            response = {Results.return_value: Errors.CANT_REACH_SERVER}
+            raise(Errors.SkyHookCantReachServer("Can't connect to Unreal, is Unreal running and the Remote Control API plugin loaded?"))
 
         try:
             # UE 4.26: Returning an unreal.Array() that's not empty crashes the editor
@@ -272,7 +265,7 @@ class UnrealClient(Client):
             # When you'd want the value of the keys to be a list of ints, for example.
 
             # On top of that, stringifying a dict also just lets you return a bunch of values that are not all the same type.
-            # As long as it can gets serialized into a JSON object, it will come out this end as a proper dictionary.
+            # As long as it can get serialized into a JSON object, it will come out this end as a proper dictionary.
             evalled_return_value = eval(response.get(Results.return_value))
             response = {Results.return_value: evalled_return_value}
         except:
