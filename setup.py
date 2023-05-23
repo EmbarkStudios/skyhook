@@ -10,15 +10,15 @@ data_files_to_include = ["*.png"]
 if sys.version_info.major == 2:
     try:
         import PySide
-        requires = ['requests==2.28.1']
+        requires = ['requests==2.31.0']
     except:
-        requires = ['requests==2.28.1', 'pyside']
+        requires = ['requests==2.31.0', 'pyside']
 else:
     try:
         import PySide2
-        requires = ['requests==2.28.1']
+        requires = ['requests==2.31.0']
     except:
-        requires = ['requests==2.28.1', 'pyside2']
+        requires = ['requests==2.31.0', 'pyside2']
 
 setuptools.setup(
     name="skyhook",
