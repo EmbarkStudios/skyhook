@@ -10,19 +10,19 @@ data_files_to_include = ["*.png"]
 if sys.version_info.major == 2:
     try:
         import PySide
-        requires = ['requests==2.28.1']
+        requires = ['requests']
     except:
-        requires = ['requests==2.28.1', 'pyside']
+        requires = ['requests', 'pyside']
 else:
     try:
         import PySide2
-        requires = ['requests==2.28.1']
+        requires = ['requests']
     except:
-        requires = ['requests==2.28.1', 'pyside2']
+        requires = ['requests', 'pyside2']
 
 setuptools.setup(
     name="skyhook",
-    version="2.3.1",
+    version="2.3.2",
     author="Niels Vaes",
     author_email="niels.vaes@embark-studios.com",
     description="Engine and DCC communication system",
