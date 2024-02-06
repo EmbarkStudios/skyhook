@@ -14,11 +14,19 @@ if sys.version_info.major == 2:
     except:
         requires = ['requests', 'pyside']
 else:
-    try:
-        import PySide2
-        requires = ['requests']
-    except:
-        requires = ['requests', 'pyside2']
+    if sys.version_info >= (3, 11):
+        try:
+            import PySide6
+            requires = ['requests']
+        except:
+            requires = ['requests', 'pyside6']
+    else:
+        try:
+            import PySide2
+            requires = ['requests']
+        except:
+            requires = ['requests', 'pyside2']
+
 
 setuptools.setup(
     name="skyhook",

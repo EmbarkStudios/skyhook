@@ -1,6 +1,10 @@
 import sys
 
-from PySide2.QtCore import *
+if sys.version_info >= (3, 11):
+    from PySide6.QtCore import *
+else:
+    from PySide2.QtCore import *
+
 from datetime import datetime
 from functools import partial
 from importlib import reload
