@@ -30,7 +30,7 @@ else:
 
 setuptools.setup(
     name="skyhook",
-    version="2.3.2",
+    version="2.3.3",
     author="Niels Vaes",
     author_email="niels.vaes@embark-studios.com",
     description="Engine and DCC communication system",
