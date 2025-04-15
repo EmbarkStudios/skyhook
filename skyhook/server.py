@@ -1,18 +1,17 @@
 import sys
-
-from PySide2.QtCore import *
+import threading
+import queue
+import time
 from datetime import datetime
 from functools import partial
 from importlib import reload
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
-import time
 import importlib
 import inspect
 import types
 import json
 import traceback
-import threading
 import urllib.parse
 
 from .logger import Logger
@@ -21,16 +20,34 @@ logger = Logger()
 from .constants import Constants, Results, ServerCommands, Errors, Ports
 from .modules import core
 
-class MainThreadExecutor(QObject):
+class EventEmitter:
+    """
+    A simple event emitter to replace Qt's signal/slot mechanism.
+    """
+    def __init__(self):
+        self._callbacks = {}
+    
+    def connect(self, event_name, callback):
+        """Connect a callback to an event"""
+        if event_name not in self._callbacks:
+            self._callbacks[event_name] = []
+        self._callbacks[event_name].append(callback)
+        
+    def emit(self, event_name, *args, **kwargs):
+        """Emit an event with arguments"""
+        if event_name in self._callbacks:
+            for callback in self._callbacks[event_name]:
+                callback(*args, **kwargs)
+
+
+class MainThreadExecutor:
     """
     Some programs, like Blender, don't like it when things get executed outside the main thread. Since the SkyHook
     server needs to run in its own thread in order to not block the UI, Blender will crash if any bpy.ops commands
     are run in the server thread. This class can be spawned in the main UI thread. The server will communicate to it
-    by emitting a signal that this class will catch. That way it can run bpy.ops code in the main thread instead of the
-    server thread.
+    through events. That way it can run bpy.ops code in the main thread instead of the server thread.
     """
     def __init__(self, server):
-        super(MainThreadExecutor, self).__init__()
         self.server = server
         logger.info("Executor started")
 
@@ -59,28 +76,20 @@ class MainThreadExecutor(QObject):
             logger.error(trace)
 
         result_json = make_result_json(success, return_value, function_name)
-
-        # self.send_result_signal.emit(result_json) # this currently doesn't work, so just setting it on server directly
         self.server.executor_reply = result_json
 
 
-class Server(QObject):
+class Server:
     """
     Main SkyHook server class
 
-    There are 3 signals that you can hook into from the outside:
-    is_terminated: emits when stop_listening() is called
-    exec_command_signal: emits the command name and the parameter dictionary when a non-server command is
-                         executed through the MainThreadExecutor
-    command_signal: will always emit the command name and parameter dictionary,
-                    whether the command was a non-server or server command
+    There are 3 callbacks that you can hook into from the outside:
+    is_terminated: called when stop_listening() is called
+    exec_command: called when a non-server command is executed through the MainThreadExecutor
+    command: always called with the command name and parameter dictionary,
+             whether the command was a non-server or server command
     """
-    is_terminated = Signal(str)
-    exec_command_signal = Signal(str, dict)
-    command_signal = Signal(str, dict)
-
     def __init__(self, host_program=None, port=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
-        super().__init__()
         self.__host_program = host_program
         if port:
             self.port = port
@@ -94,10 +103,14 @@ class Server(QObject):
 
         self.__echo_response = echo_response
 
+        # Event emitters
+        self.events = EventEmitter()
+
         self.__loaded_modules = []
         self.__loaded_modules.append(core)
         for module_name in load_modules:
             self.hotload_module(module_name)
+
 
     def start_listening(self):
         """
@@ -117,16 +130,15 @@ class Server(QObject):
         self.__http_server.server_close()
         logger.info("Server shut down")
 
-
     def stop_listening(self):
         """
-        Stops listening for incoming requests. Also emits the is_terminated signal with "TERMINATED"
+        Stops listening for incoming requests. Also emits the is_terminated event with "TERMINATED"
 
         :return: None
         """
         self.__keep_running = False
         self.__http_server.server_close()
-        self.is_terminated.emit("TERMINATED")
+        self.events.emit("is_terminated", "TERMINATED")
 
     def reload_modules(self):
         """
@@ -135,7 +147,6 @@ class Server(QObject):
 
         :return: None
         """
-
         reload_module_names = []
 
         for module in self.__loaded_modules:
@@ -213,18 +224,6 @@ class Server(QObject):
                     if function_name == name:
                         return value
 
-    def catch_executor_reply(self, reply_dict):
-        """
-        This is supposed to catch a signal coming from MainThreadExecutor, but it's not working as intended right now.
-        Will have to look into it a bit more.
-
-        :param reply_dict:
-        :return:
-        """
-        logger.info("Caught the reply from the executor!")
-        logger.info(reply_dict)
-        self.executor_reply = reply_dict
-
     def filter_and_execute_function(self, function_name, parameters_dict):
         """
         This function decides whether or the function call should come from one of the loaded modules or from the server.
@@ -269,21 +268,15 @@ class Server(QObject):
             reloaded_modules = self.reload_modules()
             result_json = make_result_json(True, reloaded_modules, ServerCommands.SKY_RELOAD_MODULES)
 
-        elif function_name == ServerCommands.SKY_HOTLOAD:
-            modules = parameters_dict.get(Constants.module)
-            is_skyhook_module = parameters_dict.get(Constants.is_skyhook_module, True)
-
-            hotloaded_modules = []
-            for module_name in modules:
-                try:
-                    self.hotload_module(module_name, is_skyhook_module=is_skyhook_module)
-                    hotloaded_modules.append(module_name)
-                except:
-                    logger.info(Errors.SERVER_COMMAND, module_name)
-                    logger.info(traceback.format_exc())
-
-            result_json = make_result_json(True, hotloaded_modules, ServerCommands.SKY_HOTLOAD)
-
+        # elif function_name == ServerCommands.SKY_HOTLOAD:
+        #     modules = parameters_dict.get(Constants.module)
+        #     is_skyhook_module = parameters_dict.get(Constants.is_skyhook_module, True)
+        # 
+        #     hotloaded_modules = []
+        #     for module_name in modules:
+        #         try:
+        #             self.hotload_module(module_name, is_sk
+        
         elif function_name == ServerCommands.SKY_UNLOAD:
             modules = parameters_dict.get(Constants.module)
             for module in modules:
@@ -306,7 +299,7 @@ class Server(QObject):
 
             result_json = make_result_json(True, arg_spec_dict, ServerCommands.SKY_FUNCTION_HELP)
 
-        self.command_signal.emit(function_name, {})
+        self.events.emit("command", function_name, {})
         logger.success("Executed %s" % function_name)
 
         return result_json
@@ -322,8 +315,8 @@ class Server(QObject):
         :return:
         """
         if self.__use_main_thread_executor:
-            logger.debug("Emitting exec_command_signal")
-            self.exec_command_signal.emit(function_name, parameters_dict)
+            logger.debug("Emitting exec_command event")
+            self.events.emit("exec_command", function_name, parameters_dict)
             start_time = time.time()
 
             while self.executor_reply is None:
@@ -341,7 +334,7 @@ class Server(QObject):
         try:
             return_value = function(**parameters_dict)
             success = True
-            self.command_signal.emit(function_name, parameters_dict)
+            self.events.emit("command", function_name, parameters_dict)
         except Exception as err:
             str(traceback.format_exc())
             return_value = str(traceback.format_exc())
@@ -364,6 +357,7 @@ class Server(QObject):
             return getattr(Ports, host_program)
         except Exception:
             return getattr(Ports, Constants.undefined)
+
 
 class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
     """
@@ -454,6 +448,7 @@ def port_in_use(port_number, host="127.0.0.1"):
         return True
     return False
 
+
 def make_result_json(success, return_value, command):
     """
     Constructs a json for the server to send back after a POST request
@@ -474,13 +469,13 @@ def make_result_json(success, return_value, command):
 
 def start_server_in_thread(host_program="", port=None, load_modules=[], echo_response=False):
     """
-    Starts a server in a separate QThread. Use this when working in Houdini or Maya.
+    Starts a server in a separate thread. 
 
     :param host_program: *string* name of the host program
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
-    :return: *QThread* and *Server*
+    :return: *Thread* and *Server*
     """
     if host_program != "":
         port = getattr(Ports, host_program)
@@ -490,14 +485,17 @@ def start_server_in_thread(host_program="", port=None, load_modules=[], echo_res
         return [None, None]
 
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
-    thread_object = QThread()
-    skyhook_server.is_terminated.connect(partial(__kill_thread, thread_object))
-    skyhook_server.moveToThread(thread_object)
+    
+    def kill_thread_callback(message):
+        logger.info("\nShyhook server thread was killed")
+    
+    skyhook_server.events.connect("is_terminated", kill_thread_callback)
+    
+    thread = threading.Thread(target=skyhook_server.start_listening)
+    thread.daemon = True
+    thread.start()
 
-    thread_object.started.connect(skyhook_server.start_listening)
-    thread_object.start()
-
-    return [thread_object, skyhook_server]
+    return [thread, skyhook_server]
 
 
 def start_executor_server_in_thread(host_program="", port=None, load_modules=[], echo_response=False):
@@ -509,7 +507,7 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
-    :return: *QThread*, *MainThreadExecutor* and *Server*
+    :return: *Thread*, *MainThreadExecutor* and *Server*
     """
     if host_program != "":
         port = getattr(Ports, host_program)
@@ -523,45 +521,24 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
 
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=True, echo_response=echo_response)
+    
+    # executor will run on the main thread
     executor = MainThreadExecutor(skyhook_server)
-    skyhook_server.exec_command_signal.connect(executor.execute)
-
-    thread_object = QThread()
-    skyhook_server.is_terminated.connect(partial(__kill_thread, thread_object))
-    skyhook_server.moveToThread(thread_object)
-    thread_object.started.connect(skyhook_server.start_listening)
-    thread_object.start()
-
-    return [thread_object, executor, skyhook_server]
-
-
-def start_python_thread_server(host_program="", port=None, load_modules=[], echo_response=False):
-    """
-    Starts a server in a separate Python thread if for whatever reason a QThread won't work
-
-    :param host_program: *string* name of the host program
-    :param port: *int* port override
-    :param load_modules: *list* modules to load
-    :param echo_response: *bool* print the response the server is sending back
-    :return: *Server*
-    """
-    if host_program != "":
-        port = getattr(Ports, host_program)
-
-    if port is None:
-        port = getattr(Ports, Constants.undefined)
-
-    if port_in_use(port):
-        logger.error(f"Port {port} is already in use, can't start server")
-        return None
-
-    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
-                            use_main_thread_executor=False, echo_response=echo_response)
+    
+    # Connect the exec_command event to the executor's execute method
+    skyhook_server.events.connect("exec_command", executor.execute)
+    
+    def kill_thread_callback(message):
+        logger.info("\nShyhook server thread was killed")
+    
+    skyhook_server.events.connect("is_terminated", kill_thread_callback)
+    
+    # running the server on a separate thread
     thread = threading.Thread(target=skyhook_server.start_listening)
-    thread.setDaemon(True)
+    thread.daemon = True
     thread.start()
 
-    return skyhook_server
+    return [thread, executor, skyhook_server]
 
 
 def start_blocking_server(host_program="", port=None, load_modules=[], echo_response=False):
@@ -587,16 +564,4 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
 
     skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     skyhook_server.start_listening()
-    return skyhook_server
-
-
-def __kill_thread(thread, _):
-    """
-    Kills a QThread
-
-    :param thread: QThread object you want to kill
-    :param _: this is garbage variable
-    :return:
-    """
-    thread.exit()
-    logger.info("\nShyhook server thread was killed")
+    return skyhook_server        
