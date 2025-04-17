@@ -1,9 +1,7 @@
 import sys
 import threading
-import queue
 import time
 from datetime import datetime
-from functools import partial
 from importlib import reload
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
@@ -529,7 +527,7 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     skyhook_server.events.connect("exec_command", executor.execute)
     
     def kill_thread_callback(message):
-        logger.info("\nShyhook server thread was killed")
+        logger.info("\nSkyhook server thread was killed")
     
     skyhook_server.events.connect("is_terminated", kill_thread_callback)
     
