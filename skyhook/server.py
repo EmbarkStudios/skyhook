@@ -173,7 +173,6 @@ class Server:
         self.events = EventEmitter()
         self.executor_reply = None
         
-        
         if port:
             self.port = port
         else:
@@ -345,15 +344,6 @@ class Server:
         elif function_name == ServerCommands.SKY_RELOAD_MODULES:
             reloaded_modules = self.reload_modules()
             result_json = make_result_json(True, reloaded_modules, ServerCommands.SKY_RELOAD_MODULES)
-
-        # elif function_name == ServerCommands.SKY_HOTLOAD:
-        #     modules = parameters_dict.get(Constants.module)
-        #     is_skyhook_module = parameters_dict.get(Constants.is_skyhook_module, True)
-        # 
-        #     hotloaded_modules = []
-        #     for module_name in modules:
-        #         try:
-        #             self.hotload_module(module_name, is_sk
         
         elif function_name == ServerCommands.SKY_UNLOAD:
             modules = parameters_dict.get(Constants.module)
