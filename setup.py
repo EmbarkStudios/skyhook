@@ -1,4 +1,3 @@
-import sys
 import setuptools
 
 with open("README.md", "r") as fh:
@@ -7,34 +6,31 @@ with open("README.md", "r") as fh:
 # any data files that match this pattern will be included
 data_files_to_include = ["*.png"]
 
-if sys.version_info.major == 2:
-    try:
-        import PySide
-        requires = ['requests']
-    except:
-        requires = ['requests', 'pyside']
-else:
-    try:
-        import PySide2
-        requires = ['requests']
-    except:
-        requires = ['requests', 'pyside2']
-
 setuptools.setup(
     name="skyhook",
-    version="2.3.2",
+    version="3.0.0",
     author="Niels Vaes",
-    author_email="niels.vaes@embark-studios.com",
+    author_email="nielsvaes@gmail.com",
     description="Engine and DCC communication system",
     long_description="Engine and DCC communication system",
     long_description_content_type="text/markdown",
     url="https://github.com/EmbarkStudios/skyhook",
-    install_requires=requires,
+    install_requires=['requests'],
     packages=setuptools.find_packages(),
     package_data={
         "": data_files_to_include,
     },
+    python_requires='>=3.6',  
     classifiers=[
         "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ]
 )

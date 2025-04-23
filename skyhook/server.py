@@ -20,19 +20,23 @@ from .modules import core
 
 class EventEmitter:
     """
-    A simple event emitter to replace Qt's signal/slot mechanism.
+    A simple event emitter similar to Qt's signal/slot mechanism.
     """
     def __init__(self):
         self._callbacks = {}
     
     def connect(self, event_name, callback):
-        """Connect a callback to an event"""
+        """
+        Connect a callback to an event
+        """
         if event_name not in self._callbacks:
             self._callbacks[event_name] = []
         self._callbacks[event_name].append(callback)
         
     def emit(self, event_name, *args, **kwargs):
-        """Emit an event with arguments"""
+        """
+        Emit an event with arguments
+        """
         if event_name in self._callbacks:
             for callback in self._callbacks[event_name]:
                 callback(*args, **kwargs)
@@ -64,12 +68,12 @@ class GenericMainThreadExecutor:
         try:
             return_value = function(**parameters_dict)
             success = True
-            logger.success("MainThreadExecutor executed %s" % function)
+            logger.success(f"MainThreadExecutor executed {function}")
         except Exception as err:
             trace = str(traceback.format_exc())
             return_value = trace
             success = False
-            logger.error("MainThreadExecutor couldn't execute %s " % function)
+            logger.error(f"MainThreadExecutor couldn't execute {function}")
             logger.error(str(err))
             logger.error(trace)
 
@@ -95,12 +99,12 @@ class MayaExecutor(GenericMainThreadExecutor):
         try:
             return_value = self.executeInMainThreadWithResult(function, **parameters_dict)
             success = True
-            logger.success("MayaExecutor executed %s" % function)
+            logger.success(f"MayaExecutor executed {function}")
         except Exception as err:
             trace = str(traceback.format_exc())
             return_value = trace
             success = False
-            logger.error("MayaExecutor couldn't execute %s " % function)
+            logger.error(f"MayaExecutor couldn't execute {function}")
             logger.error(str(err))
             logger.error(trace)
 
@@ -146,13 +150,14 @@ class BlenderExecutor(GenericMainThreadExecutor):
         
         if error[0]:
             success = False
-            logger.error("BlenderExecutor couldn't execute %s" % function)
+            logger.error(f"BlenderExecutor couldn't execute {function}")
             result_json = make_result_json(success, error[0], function_name)
         else:
             success = True
-            logger.success("BlenderExecutor executed %s" % function)
+            logger.success(f"BlenderExecutor executed {function}")
             result_json = make_result_json(success, result[0], function_name)        
         self.server.executor_reply = result_json
+
 
 class Server:
     """
@@ -196,7 +201,7 @@ class Server:
             SkyHookHTTPRequestHandler(skyhook_server=self, *args)
 
         self.__http_server = HTTPServer(("127.0.0.1", self.port), handler)
-        logger.info("Started SkyHook on port: %s" % self.port)
+        logger.info(f"Started SkyHook on port: {self.port}")
         while self.__keep_running:
             self.__http_server.handle_request()
         logger.info("Shutting down server")
@@ -246,16 +251,16 @@ class Server:
 
         try:
             if is_skyhook_module:
-                mod = importlib.import_module(".modules.%s" % module_name, package="skyhook")
+                mod = importlib.import_module(f".modules.{module_name}", package="skyhook")
             else:
                 mod = importlib.import_module(module_name)
 
             if not mod in self.__loaded_modules:
                 self.__loaded_modules.append(mod)
-                logger.info("Added %s" % mod)
+                logger.info(f"Added {mod}")
                 logger.info(self.__loaded_modules)
         except:
-            logger.error("Failed to hotload: %s" % module_name)
+            logger.error(f"Failed to hotload: {module_name}")
 
     def unload_modules(self, module_name, is_skyhook_module=True):
         """
@@ -282,7 +287,7 @@ class Server:
         :return: the actual function that matches your name, or None
         """
         if module_name is not None:
-            module = sys.modules.get(".modules.%s" % module_name)
+            module = sys.modules.get(f".modules.{module_name}")
             if module is not None:
                 modules = [module]
             else:
@@ -366,14 +371,14 @@ class Server:
             arg_spec_dict["function_name"] = function_name
             arg_spec_dict["arguments"] = arg_spec.args
             if arg_spec.varargs is not None:
-                arg_spec_dict["packed_args"] = "*%s" % arg_spec.varargs
+                arg_spec_dict["packed_args"] = f"*{arg_spec.varargs}" 
             if arg_spec.keywords is not None:
-                arg_spec_dict["packed_kwargs"] = "**%s" % arg_spec.keywords
+                arg_spec_dict["packed_kwargs"] = f"**{arg_spec.keywords}" 
 
             result_json = make_result_json(True, arg_spec_dict, ServerCommands.SKY_FUNCTION_HELP)
 
         self.events.emit("command", function_name, {})
-        logger.success("Executed %s" % function_name)
+        logger.success(f"Executed {function_name}")
 
         return result_json
 
@@ -438,7 +443,7 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
     it can call the Server functions after it has processed the request.
 
     """
-    skyhook_server: Server # for PyCharm autocomplete
+    skyhook_server: Server 
 
     def __init__(self, request, client_address, server, skyhook_server=None, reply_with_auto_close=True):
         self.skyhook_server = skyhook_server
