@@ -1,9 +1,6 @@
 import sys
 import threading
 import time
-from datetime import datetime
-from importlib import reload
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
 import importlib
 import inspect
@@ -12,20 +9,26 @@ import json
 import traceback
 import urllib.parse
 
-from .logger import Logger
-logger = Logger()
+from datetime import datetime
+from importlib import reload
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Dict, List, Optional, TypeVar, Union, Callable
 
 from .constants import Constants, Results, ServerCommands, Errors, Ports, HostPrograms
 from .modules import core
+from .logger import Logger
+logger = Logger()
+
+T = TypeVar('T')
 
 class EventEmitter:
     """
     A simple event emitter similar to Qt's signal/slot mechanism.
     """
-    def __init__(self):
-        self._callbacks = {}
+    def __init__(self) -> None:
+        self._callbacks: Dict[str, List[Callable[..., Any]]] = {}
     
-    def connect(self, event_name, callback):
+    def connect(self, event_name: str, callback: Callable[..., Any]) -> None:
         """
         Connect a callback to an event
         """
@@ -33,7 +36,7 @@ class EventEmitter:
             self._callbacks[event_name] = []
         self._callbacks[event_name].append(callback)
         
-    def emit(self, event_name, *args, **kwargs):
+    def emit(self, event_name: str, *args: Any, **kwargs: Any) -> None:
         """
         Emit an event with arguments
         """
@@ -49,11 +52,11 @@ class GenericMainThreadExecutor:
     are run in the server thread. This class can be spawned in the main UI thread. The server will communicate to it
     through events. That way it can run bpy.ops code in the main thread instead of the server thread.
     """
-    def __init__(self, server):
-        self.server = server
+    def __init__(self, server: 'Server') -> None:
+        self.server: 'Server' = server
         logger.info(f"Executor started: {type(self)}")
 
-    def execute(self, function_name, parameters_dict):
+    def execute(self, function_name: str, parameters_dict: Dict[str, Any]) -> None:
         """
         Executes a function. The response from the SkyHook server will not be returned here, but set in the server's
         executor_reply property. When using a MainThreadExecutor, the server will block until its executor_reply
@@ -64,73 +67,74 @@ class GenericMainThreadExecutor:
         :return: None
         """
         parameters_dict.pop(Constants.module, None)
-        function = self.server.get_function_by_name(function_name)
+        function: Callable[..., Any] = self.server.get_function_by_name(function_name)
         try:
-            return_value = function(**parameters_dict)
-            success = True
+            return_value: Any = function(**parameters_dict)
+            success: bool = True
             logger.success(f"MainThreadExecutor executed {function}")
         except Exception as err:
-            trace = str(traceback.format_exc())
+            trace: str = str(traceback.format_exc())
             return_value = trace
             success = False
             logger.error(f"MainThreadExecutor couldn't execute {function}")
             logger.error(str(err))
             logger.error(trace)
 
-        result_json = make_result_json(success, return_value, function_name)
+        result_json: Dict[str, Any] = make_result_json(success, return_value, function_name)
         self.server.executor_reply = result_json
 
 
 class MayaExecutor(GenericMainThreadExecutor):
-    def __init__(self, server):
+    def __init__(self, server: 'Server') -> None:
         super().__init__(server)
         
         try: 
             import maya.utils
-            self.executeInMainThreadWithResult = maya.utils.executeInMainThreadWithResult
+            self.executeInMainThreadWithResult: Callable[..., Any] = maya.utils.executeInMainThreadWithResult
             logger.success("Fetched maya.utils.executeInMainThreadWithResult")
         except:
             logger.error("Couldn't fetch maya.utils.executeInMainThreadWithResult")
         
-    def execute(self, function_name, parameters_dict):
+    def execute(self, function_name: str, parameters_dict: Dict[str, Any]) -> None:
         parameters_dict.pop(Constants.module, None)
-        function = self.server.get_function_by_name(function_name)
+        function: Callable[..., Any] = self.server.get_function_by_name(function_name)
         
         try:
-            return_value = self.executeInMainThreadWithResult(function, **parameters_dict)
-            success = True
+            return_value: Any = self.executeInMainThreadWithResult(function, **parameters_dict)
+            success: bool = True
             logger.success(f"MayaExecutor executed {function}")
         except Exception as err:
-            trace = str(traceback.format_exc())
+            trace: str = str(traceback.format_exc())
             return_value = trace
             success = False
             logger.error(f"MayaExecutor couldn't execute {function}")
             logger.error(str(err))
             logger.error(trace)
 
-        result_json = make_result_json(success, return_value, function_name)
+        result_json: Dict[str, Any] = make_result_json(success, return_value, function_name)
         self.server.executor_reply = result_json
        
         
 class BlenderExecutor(GenericMainThreadExecutor):
-    def __init__(self, server):
+    def __init__(self, server: 'Server') -> None:
         super().__init__(server)
 
         try: 
             import bpy.app.timers
-            self.register = bpy.app.timers.register
+            self.register: Callable[[Callable[[], Optional[float]]], None] = bpy.app.timers.register
             logger.success("Fetched bpy.app.timers.register")
         except:
             logger.error("Couldn't fetch bpy.app.timers.register")
         
-    def execute(self, function_name, parameters_dict):
+    def execute(self, function_name: str, parameters_dict: Dict[str, Any]) -> None:
         parameters_dict.pop(Constants.module, None)
-        function = self.server.get_function_by_name(function_name)
+        function: Callable[..., Any] = self.server.get_function_by_name(function_name)
         
-        done_event = threading.Event()
-        result, error = [None], [None]
+        done_event: threading.Event = threading.Event()
+        result: List[Optional[Any]] = [None]
+        error: List[Optional[str]] = [None]
         
-        def timer_function():
+        def timer_function() -> None:
             try:
                 logger.info("running timer function now!")
                 logger.info(function)
@@ -149,9 +153,9 @@ class BlenderExecutor(GenericMainThreadExecutor):
         done_event.wait()  # Wait indefinitely
         
         if error[0]:
-            success = False
+            success: bool = False
             logger.error(f"BlenderExecutor couldn't execute {function}")
-            result_json = make_result_json(success, error[0], function_name)
+            result_json: Dict[str, Any] = make_result_json(success, error[0], function_name)
         else:
             success = True
             logger.success(f"BlenderExecutor executed {function}")
@@ -169,34 +173,42 @@ class Server:
     command: always called with the command name and parameter dictionary,
              whether the command was a non-server or server command
     """
-    def __init__(self, host_program=None, port=None, load_modules=[], use_main_thread_executor=False, echo_response=True):
-        self.events = EventEmitter()
-        self.executor_reply = None
+    def __init__(
+        self, 
+        host_program: Optional[str] = None, 
+        port: Optional[int] = None, 
+        load_modules: List[str] = [], 
+        use_main_thread_executor: bool = False, 
+        echo_response: bool = True
+    ) -> None:
+        
+        self.events: EventEmitter = EventEmitter()
+        self.executor_reply: Optional[Dict[str, Any]] = None
         
         if port:
-            self.port = port
+            self.port: int = port
         else:
             self.port = self.__get_host_program_port(host_program)
         
-        self.__host_program = host_program
-        self.__keep_running = True
-        self.__use_main_thread_executor = use_main_thread_executor
-        self.__http_server = None
-        self.__echo_response = echo_response
-        self.__loaded_modules = []
+        self.__host_program: Optional[str] = host_program
+        self.__keep_running: bool = True
+        self.__use_main_thread_executor: bool = use_main_thread_executor
+        self.__http_server: Optional[HTTPServer] = None
+        self.__echo_response: bool = echo_response
+        self.__loaded_modules: List[types.ModuleType] = []
         self.__loaded_modules.append(core)
         
         for module_name in load_modules:
             self.hotload_module(module_name)
 
-    def start_listening(self):
+    def start_listening(self) -> None:
         """
         Creates a RequestHandler and starts the listening for incoming requests. Will continue to listen for requests
         until self.__keep_running is set to False
 
         :return: None
         """
-        def handler(*args):
+        def handler(*args: Any) -> None:
             SkyHookHTTPRequestHandler(skyhook_server=self, *args)
 
         self.__http_server = HTTPServer(("127.0.0.1", self.port), handler)
@@ -207,24 +219,25 @@ class Server:
         self.__http_server.server_close()
         logger.info("Server shut down")
 
-    def stop_listening(self):
+    def stop_listening(self) -> None:
         """
         Stops listening for incoming requests. Also emits the is_terminated event with "TERMINATED"
 
         :return: None
         """
         self.__keep_running = False
-        self.__http_server.server_close()
+        if self.__http_server:
+            self.__http_server.server_close()
         self.events.emit("is_terminated", "TERMINATED")
 
-    def reload_modules(self):
+    def reload_modules(self) -> List[str]:
         """
         Reloads all the currently loaded modules. This can also be called remotely by sending
         ServerCommands.SKY_RELOAD_MODULES as the FunctionName.
 
-        :return: None
+        :return: List of reloaded module names
         """
-        reload_module_names = []
+        reload_module_names: List[str] = []
 
         for module in self.__loaded_modules:
             try:
@@ -234,7 +247,7 @@ class Server:
                 importlib.reload(module)
         return reload_module_names
 
-    def hotload_module(self, module_name, is_skyhook_module=True):
+    def hotload_module(self, module_name: Union[str, types.ModuleType], is_skyhook_module: bool = True) -> None:
         """
         Tries to load a module with module_name from skyhook.modules to be added to the server while it's running.
 
@@ -250,7 +263,7 @@ class Server:
 
         try:
             if is_skyhook_module:
-                mod = importlib.import_module(f".modules.{module_name}", package="skyhook")
+                mod: types.ModuleType = importlib.import_module(f".modules.{module_name}", package="skyhook")
             else:
                 mod = importlib.import_module(module_name)
 
@@ -261,7 +274,7 @@ class Server:
         except:
             logger.error(f"Failed to hotload: {module_name}")
 
-    def unload_modules(self, module_name, is_skyhook_module=True):
+    def unload_modules(self, module_name: str, is_skyhook_module: bool = True) -> None:
         """
         Removes a module from the server
 
@@ -270,14 +283,14 @@ class Server:
         :return: None
         """
         if is_skyhook_module:
-            full_name = "skyhook.modules." + module_name
+            full_name: str = "skyhook.modules." + module_name
         else:
             full_name = module_name
         for module in self.__loaded_modules:
             if module.__name__ == full_name:
                 self.__loaded_modules.remove(module)
 
-    def get_function_by_name(self, function_name, module_name=None):
+    def get_function_by_name(self, function_name: str, module_name: Optional[str] = None) -> Callable[..., Any]:
         """
         Tries to find a function by name.
 
@@ -300,66 +313,75 @@ class Server:
                 if callable(value):
                     if function_name == name:
                         return value
+        
+        # If no function is found, return a dummy function that raises an error
+        def function_not_found(*args: Any, **kwargs: Any) -> None:
+            raise ValueError(f"Function {function_name} not found")
+        
+        return function_not_found
 
-    def filter_and_execute_function(self, function_name, parameters_dict):
+    def filter_and_execute_function(self, function_name: str, parameters_dict: Dict[str, Any]) -> bytes:
         """
         This function decides whether or the function call should come from one of the loaded modules or from the server.
         Every server function should start with SKY_
 
         You shouldn't call this function directly.
 
-        :param function_name:
-        :param parameters_dict:
-        :return:
+        :param function_name: Name of the function to execute
+        :param parameters_dict: Dictionary of parameters to pass to the function
+        :return: JSON response as bytes
         """
         if function_name in dir(ServerCommands):
-            result_json = self.__process_server_command(function_name, parameters_dict)
+            result_json: Dict[str, Any] = self.__process_server_command(function_name, parameters_dict)
         else:
             result_json = self.__process_module_command(function_name, parameters_dict)
 
         self.executor_reply = None
         return json.dumps(result_json).encode()
 
-    def __process_server_command(self, function_name, parameters_dict={}):
+    def __process_server_command(self, function_name: str, parameters_dict: Dict[str, Any] = {}) -> Dict[str, Any]:
         """
         Processes a command if the function in it was a server function.
 
         You shouldn't call this function directly
 
-        :param function_name:
-        :return:
+        :param function_name: Name of the server command to execute
+        :param parameters_dict: Dictionary of parameters for the command
+        :return: Result JSON dictionary
         """
-        result_json = make_result_json(False, Errors.SERVER_COMMAND, None)
+        result_json: Dict[str, Any] = make_result_json(False, Errors.SERVER_COMMAND, None)
 
         if function_name == ServerCommands.SKY_SHUTDOWN:
             self.stop_listening()
             result_json = make_result_json(True, "Server offline", ServerCommands.SKY_SHUTDOWN)
 
         elif function_name == ServerCommands.SKY_LS:
-            functions = []
+            functions: List[str] = []
             for module in self.__loaded_modules:
                 functions.extend([func for func in dir(module) if not "__" in func or isinstance(func, types.FunctionType)])
             result_json = make_result_json(True, functions, ServerCommands.SKY_LS)
 
         elif function_name == ServerCommands.SKY_RELOAD_MODULES:
-            reloaded_modules = self.reload_modules()
+            reloaded_modules: List[str] = self.reload_modules()
             result_json = make_result_json(True, reloaded_modules, ServerCommands.SKY_RELOAD_MODULES)
         
         elif function_name == ServerCommands.SKY_UNLOAD:
-            modules = parameters_dict.get(Constants.module)
+            modules: List[str] = parameters_dict.get(Constants.module, [])
             for module in modules:
                 self.unload_modules(module)
 
             result_json = make_result_json(True, [m.__name__ for m in self.__loaded_modules], ServerCommands.SKY_UNLOAD)
 
         elif function_name == ServerCommands.SKY_FUNCTION_HELP:
-            function_name = parameters_dict.get("function_name")
-            function = self.get_function_by_name(function_name)
+            function_name_param: str = parameters_dict.get("function_name", "")
+            function: Callable[..., Any] = self.get_function_by_name(function_name_param)
             arg_spec = inspect.getfullargspec(function)
 
-            arg_spec_dict = {}
-            arg_spec_dict["function_name"] = function_name
-            arg_spec_dict["arguments"] = arg_spec.args
+            arg_spec_dict: Dict[str, Any] = {
+                "function_name": function_name_param, 
+                "arguments": arg_spec.args
+            }
+            
             if arg_spec.varargs is not None:
                 arg_spec_dict["packed_args"] = f"*{arg_spec.varargs}" 
             if arg_spec.keywords is not None:
@@ -372,46 +394,47 @@ class Server:
 
         return result_json
 
-    def __process_module_command(self, function_name, parameters_dict, timeout=10.0):
+    def __process_module_command(self, function_name: str, parameters_dict: Dict[str, Any], timeout: float = 10.0) -> Dict[str, Any]:
         """
         Processes a command if the function in it was a module function.
 
         You shouldn't call this function directly
 
-        :param function_name:
-        :param parameters_dict:
-        :return:
+        :param function_name: Name of the function to execute
+        :param parameters_dict: Dictionary of parameters for the function
+        :param timeout: Timeout in seconds for waiting for executor reply
+        :return: Result JSON dictionary
         """
         if self.__use_main_thread_executor:
             logger.debug("Emitting exec_command event")
             self.events.emit("exec_command", function_name, parameters_dict)
-            start_time = time.time()
+            start_time: float = time.time()
 
             while self.executor_reply is None:
                 # wait for the executor to reply, just keep checking the time to see if we've waited longer
                 # than timeout permits
-                current_time = time.time()
+                current_time: float = time.time()
                 if current_time - start_time > timeout:
                     self.executor_reply = make_result_json(success=False, return_value=Errors.TIMEOUT, command=function_name)
             return self.executor_reply
 
-        module = parameters_dict.get(Constants.module)
+        module: Optional[str] = parameters_dict.get(Constants.module)
         parameters_dict.pop(Constants.module, None) # remove module from the parameters, otherwise it gets passed to the function
-        function = self.get_function_by_name(function_name, module)
+        function: Callable[..., Any] = self.get_function_by_name(function_name, module)
 
         try:
-            return_value = function(**parameters_dict)
-            success = True
+            return_value: Any = function(**parameters_dict)
+            success: bool = True
             self.events.emit("command", function_name, parameters_dict)
         except Exception as err:
-            str(traceback.format_exc())
-            return_value = str(traceback.format_exc())
+            trace: str = str(traceback.format_exc())
+            return_value = trace
             success = False
 
-        result_json = make_result_json(success, return_value, function_name)
+        result_json: Dict[str, Any] = make_result_json(success, return_value, function_name)
         return result_json
 
-    def __get_host_program_port(self, host_program):
+    def __get_host_program_port(self, host_program: Optional[str]) -> int:
         """
         Looks through the Constants.Ports class to try and find the port for the host program. If it can't, it will
         default to Constants.Ports.undefined
@@ -419,10 +442,12 @@ class Server:
         You shouldn't call this function directly
 
         :param host_program: *string* name of the host program
-        :return:
+        :return: Port number as integer
         """
         try:
-            return getattr(Ports, host_program)
+            if host_program is not None:
+                return getattr(Ports, host_program)
+            return getattr(Ports, Constants.undefined)
         except Exception:
             return getattr(Ports, Constants.undefined)
 
@@ -431,16 +456,23 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
     """
     The class that handles requests coming into the server. It holds a reference to the Server class, so
     it can call the Server functions after it has processed the request.
-
     """
     skyhook_server: Server 
 
-    def __init__(self, request, client_address, server, skyhook_server=None, reply_with_auto_close=True):
+    def __init__(
+        self, 
+        request: socket.socket, 
+        client_address: tuple, 
+        server: HTTPServer, 
+        skyhook_server: Optional[Server] = None, 
+        reply_with_auto_close: bool = True
+    ) -> None:
+        
         self.skyhook_server = skyhook_server
         self.reply_with_auto_close = reply_with_auto_close
         super().__init__(request, client_address, server)
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         """
         Handle a GET request, this would be just a browser requesting a particular url
         like: http://localhost:65500/%22echo_message%22&%7B%22message%22:%22Hooking%20into%20the%20Sky%22%7D
@@ -449,42 +481,42 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/favicon.ico":
             return
 
-        data = urllib.parse.unquote(self.path).lstrip("/")
-        parts = data.split("&")
+        data: str = urllib.parse.unquote(self.path).lstrip("/")
+        parts: List[str] = data.split("&")
 
         try:
-            function = eval(parts[0])
-            parameters = json.loads(parts[1])
+            function: str = eval(parts[0])
+            parameters: Dict[str, Any] = json.loads(parts[1])
         except NameError as err:
             logger.warning(f"Got a GET request that I don't know what to do with")
             logger.warning(f"Request was: GET {data}")
             logger.warning(f"Error is   : {err}")
             return
 
-        command_response = self.skyhook_server.filter_and_execute_function(function, parameters)
+        command_response: bytes = self.skyhook_server.filter_and_execute_function(function, parameters)
         self.send_response_data("GET")
         self.wfile.write(bytes(f"{command_response}".encode("utf-8")))
         if self.reply_with_auto_close:
             # reply back to the browser with a javascript that will close the window (tab) it just opened
             self.wfile.write(bytes("<script type='text/javascript'>window.open('','_self').close();</script>".encode("utf-8")))
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         """
         Handle a post request, expects a JSON object to be sent in the POST data
         """
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        decoded_data = post_data.decode('utf-8')
-        json_data = json.loads(decoded_data)
+        content_length: int = int(self.headers['Content-Length'])
+        post_data: bytes = self.rfile.read(content_length)
+        decoded_data: str = post_data.decode('utf-8')
+        json_data: Dict[str, Any] = json.loads(decoded_data)
 
-        function = json_data.get(Constants.function_name)
-        parameters = json_data.get(Constants.parameters)
+        function: str = json_data.get(Constants.function_name, "")
+        parameters: Dict[str, Any] = json_data.get(Constants.parameters, {})
 
-        command_response = self.skyhook_server.filter_and_execute_function(function, parameters)
+        command_response: bytes = self.skyhook_server.filter_and_execute_function(function, parameters)
         self.send_response_data("POST")
         self.wfile.write(command_response)
 
-    def send_response_data(self, request_type):
+    def send_response_data(self, request_type: str) -> None:
         """
         Generates the response and appropriate headers to send back to the client
 
@@ -500,7 +532,7 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-def port_in_use(port_number, host="127.0.0.1", timeout=0.125):
+def port_in_use(port_number: int, host: str = "127.0.0.1", timeout: float = 0.125) -> bool:
     """
     Checks if a specific ports is already in use by a different process. Useful if you want to check if you can start
     a SkyHook server on a default port that might already be in use.
@@ -508,26 +540,26 @@ def port_in_use(port_number, host="127.0.0.1", timeout=0.125):
     :param port_number: Port you want to check
     :param host: Hostname, default is 127.0.0.1
     :param timeout: when the socket should time out
-    :return:
+    :return: True if port is in use, False otherwise
     """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
-    result = sock.connect_ex((host, port_number))
+    result: int = sock.connect_ex((host, port_number))
     if result == 0:
         return True
     return False
 
 
-def make_result_json(success, return_value, command):
+def make_result_json(success: bool, return_value: Any, command: str) -> Dict[str, Any]:
     """
     Little helper function to construct a json for the server to send back after a POST request
 
-    :param success:
-    :param return_value:
-    :param command:
-    :return:
+    :param success: Whether the command was successful
+    :param return_value: The return value of the command
+    :param command: The command that was executed
+    :return: Dictionary with result information
     """
-    result_json = {
+    result_json: Dict[str, Any] = {
         Results.time: datetime.now().strftime("%H:%M:%S"),
         Results.success: success,
         Results.return_value: return_value,
@@ -537,7 +569,12 @@ def make_result_json(success, return_value, command):
     return result_json
 
 
-def start_server_in_thread(host_program="", port=None, load_modules=[], echo_response=False):
+def start_server_in_thread(
+    host_program: str = "", 
+    port: Optional[int] = None, 
+    load_modules: List[str] = [], 
+    echo_response: bool = False
+) -> List[Optional[Union[threading.Thread, Server]]]:
     """
     Starts a server in a separate thread. 
 
@@ -545,7 +582,7 @@ def start_server_in_thread(host_program="", port=None, load_modules=[], echo_res
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
-    :return: *Thread* and *Server*
+    :return: *List* containing Thread and Server or None values if server couldn't start
     """
     if host_program != "":
         port = getattr(Ports, host_program)
@@ -554,21 +591,27 @@ def start_server_in_thread(host_program="", port=None, load_modules=[], echo_res
         logger.error(f"Port {port} is already in use, can't start server")
         return [None, None]
 
-    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
+    skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     
-    def kill_thread_callback(message):
+    def kill_thread_callback(message: str) -> None:
         logger.info("\nShyhook server thread was killed")
     
     skyhook_server.events.connect("is_terminated", kill_thread_callback)
     
-    thread = threading.Thread(target=skyhook_server.start_listening)
+    thread: threading.Thread = threading.Thread(target=skyhook_server.start_listening)
     thread.daemon = True
     thread.start()
 
     return [thread, skyhook_server]
 
 
-def start_executor_server_in_thread(host_program="", port=None, load_modules=[], echo_response=False, executor=None):
+def start_executor_server_in_thread(
+    host_program: str = "", 
+    port: Optional[int] = None, 
+    load_modules: List[str] = [], 
+    echo_response: bool = False, 
+    executor: Optional[GenericMainThreadExecutor] = None
+) -> List[Optional[Union[threading.Thread, GenericMainThreadExecutor, Server]]]:
     """
     Starts a server in a thread, but moves all executing functionality to a MainThreadExecutor object. Use this
     for a host program where executing code in a thread other than the main thread is not safe. Eg: Blender
@@ -577,7 +620,8 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
-    :return: *Thread*, *MainThreadExecutor* and *Server*
+    :param executor: Optional executor instance to use
+    :return: *List* containing Thread, MainThreadExecutor and Server or None values if server couldn't start
     """
     if host_program != "":
         port = getattr(Ports, host_program)
@@ -589,7 +633,7 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
         logger.error(f"Port {port} is already in use, can't start server")
         return [None, None, None]
 
-    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules,
+    skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=True, echo_response=echo_response)
     
     # executor will run on the main thread
@@ -608,20 +652,25 @@ def start_executor_server_in_thread(host_program="", port=None, load_modules=[],
     # Connect the exec_command event to the executor's execute method
     skyhook_server.events.connect("exec_command", executor.execute)
     
-    def kill_thread_callback(message):
+    def kill_thread_callback(message: str) -> None:
         logger.info("\nSkyhook server thread was killed")
     
     skyhook_server.events.connect("is_terminated", kill_thread_callback)
     
     # running the server on a separate thread
-    thread = threading.Thread(target=skyhook_server.start_listening)
+    thread: threading.Thread = threading.Thread(target=skyhook_server.start_listening)
     thread.daemon = True
     thread.start()
 
     return [thread, executor, skyhook_server]
 
 
-def start_blocking_server(host_program="", port=None, load_modules=[], echo_response=False):
+def start_blocking_server(
+    host_program: str = "", 
+    port: Optional[int] = None, 
+    load_modules: List[str] = [], 
+    echo_response: bool = False
+) -> Optional[Server]:
     """
     Starts a server in the main thread. This will block your application. Use this when you don't care about your
     application being locked up.
@@ -630,7 +679,7 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
-    :return: *Server*
+    :return: Server instance or None if server couldn't start
     """
     if host_program != "":
         port = getattr(Ports, host_program)
@@ -642,6 +691,6 @@ def start_blocking_server(host_program="", port=None, load_modules=[], echo_resp
         logger.error(f"Port {port} is already in use, can't start server")
         return None
 
-    skyhook_server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
+    skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
     skyhook_server.start_listening()
-    return skyhook_server        
+    return skyhook_server                
