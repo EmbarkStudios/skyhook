@@ -12,7 +12,7 @@ import urllib.parse
 from datetime import datetime
 from importlib import reload
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any, Dict, List, Optional, TypeVar, Union, Callable
+from typing import Any, Dict, List, Optional, TypeVar, Union, Callable, Type
 
 from .constants import Constants, Results, ServerCommands, Errors, Ports, HostPrograms
 from .modules import core
@@ -47,10 +47,9 @@ class EventEmitter:
 
 class GenericMainThreadExecutor:
     """
-    Some programs, like Blender, don't like it when things get executed outside the main thread. Since the SkyHook
-    server needs to run in its own thread in order to not block the UI, Blender will crash if any bpy.ops commands
-    are run in the server thread. This class can be spawned in the main UI thread. The server will communicate to it
-    through events. That way it can run bpy.ops code in the main thread instead of the server thread.
+    You can spawn an object of this class in the main thread of a program, while the server runs in a different thread. Any code
+    execution will happen in the main thread and the server can run on a separate, non-blocking thread. Useful when you're
+    running a Skyhook server inside another program. 
     """
     def __init__(self, server: 'Server') -> None:
         self.server: 'Server' = server
@@ -85,6 +84,9 @@ class GenericMainThreadExecutor:
 
 
 class MayaExecutor(GenericMainThreadExecutor):
+    """
+    A specific MainThreadExecutor for Maya. It will run any code using maya.utils.executeInMainThread. 
+    """
     def __init__(self, server: 'Server') -> None:
         super().__init__(server)
         
@@ -116,6 +118,12 @@ class MayaExecutor(GenericMainThreadExecutor):
        
         
 class BlenderExecutor(GenericMainThreadExecutor):
+    """
+    A specific MainThreadExecutor for Blender. It will schedule any code to be registered with
+    bpy.app.timers, where it will run in the main UI thread of Blender. It uses an inner function
+    that will wrap the actual code in order to get a proper result back and make sure we can wait
+    until the code execution is done before we continue.
+    """
     def __init__(self, server: 'Server') -> None:
         super().__init__(server)
 
@@ -136,7 +144,6 @@ class BlenderExecutor(GenericMainThreadExecutor):
         
         def timer_function() -> None:
             try:
-                logger.info("running timer function now!")
                 logger.info(function)
                 result[0] = function(**parameters_dict)
             except Exception as e:
@@ -150,7 +157,7 @@ class BlenderExecutor(GenericMainThreadExecutor):
         
         # run the function in Blenders's main thread
         self.register(timer_function)
-        done_event.wait()  # Wait indefinitely
+        done_event.wait()  # Wait until done_event is set(), then continue
         
         if error[0]:
             success: bool = False
@@ -610,7 +617,8 @@ def start_executor_server_in_thread(
     port: Optional[int] = None, 
     load_modules: List[str] = [], 
     echo_response: bool = False, 
-    executor: Optional[GenericMainThreadExecutor] = None
+    executor: Optional[GenericMainThreadExecutor] = None,
+    executor_name: Optional[str] = None
 ) -> List[Optional[Union[threading.Thread, GenericMainThreadExecutor, Server]]]:
     """
     Starts a server in a thread, but moves all executing functionality to a MainThreadExecutor object. Use this
@@ -621,6 +629,7 @@ def start_executor_server_in_thread(
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :param executor: Optional executor instance to use
+    :param executor_name: Name of an executor to use, for example "maya" or "blender"
     :return: *List* containing Thread, MainThreadExecutor and Server or None values if server couldn't start
     """
     if host_program != "":
@@ -636,18 +645,33 @@ def start_executor_server_in_thread(
     skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules,
                             use_main_thread_executor=True, echo_response=echo_response)
     
-    # executor will run on the main thread
-    # no executor is specified, try to get it from the host_program name
-    if executor is None and host_program:
-        if host_program == HostPrograms.maya:
-            logger.info("Host program is Maya, running the MayaExecutor")
-            executor = MayaExecutor(skyhook_server)
-        elif host_program == HostPrograms.blender:
-            executor = BlenderExecutor(skyhook_server)
-    # no executor is specified and no host program was specified, make a generic one
-    elif executor is None and not host_program:
-        logger.warning("There's no host program or executor specified, making a generic MainThreadExecutor")
-        executor = GenericMainThreadExecutor(skyhook_server)        
+    executor_mapping: Dict[str, Type[GenericMainThreadExecutor]] = {
+        HostPrograms.maya: MayaExecutor,
+        HostPrograms.blender: BlenderExecutor,
+    }
+    
+    # if we didn't specify an executor to use, figure out which one we should make
+    if executor is None:
+        executor_key: Optional[str] = None
+        
+        # executor_name > host_program > default
+        if executor_name is not None:
+            executor_key = executor_name
+            logger.info(f"Using executor specified by name: {executor_name}")
+        elif host_program:
+            executor_key = host_program
+            logger.info(f"Using executor based on host program: {host_program}")
+        
+        # we found which one to use in the mapping
+        if executor_key in executor_mapping:
+            executor_class = executor_mapping[executor_key]
+            # make the executor
+            executor = executor_class(skyhook_server)
+            logger.info(f"Created {executor_class.__name__}")
+        # we couldn't find one, make a GenericMainThreadExecutor
+        else:
+            logger.warning("No specific executor found, using GenericMainThreadExecutor")
+            executor = GenericMainThreadExecutor(skyhook_server)
     
     # Connect the exec_command event to the executor's execute method
     skyhook_server.events.connect("exec_command", executor.execute)
