@@ -14,7 +14,7 @@ from importlib import reload
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, List, Optional, TypeVar, Union, Callable, Type
 
-from .constants import Constants, Results, ServerCommands, Errors, Ports, HostPrograms
+from .constants import Constants, Results, ServerCommands, Errors, Ports, HostPrograms, ServerEvents
 from .modules import core
 from .logger import Logger
 logger = Logger()
@@ -175,9 +175,9 @@ class Server:
     Main SkyHook server class
 
     There are 3 callbacks that you can hook into from the outside:
-    is_terminated: called when stop_listening() is called
-    exec_command: called when a non-server command is executed through the MainThreadExecutor
-    command: always called with the command name and parameter dictionary,
+    ServerEvents.is_terminated: called when stop_listening() is called
+    ServerEvents.exec_command: called when a non-server command is executed through the MainThreadExecutor
+    ServerEvents.command: always called with the command name and parameter dictionary,
              whether the command was a non-server or server command
     """
     def __init__(
@@ -396,7 +396,7 @@ class Server:
 
             result_json = make_result_json(True, arg_spec_dict, ServerCommands.SKY_FUNCTION_HELP)
 
-        self.events.emit("command", function_name, {})
+        self.events.emit(ServerEvents.command, function_name, {})
         logger.success(f"Executed {function_name}")
 
         return result_json
@@ -414,7 +414,7 @@ class Server:
         """
         if self.__use_main_thread_executor:
             logger.debug("Emitting exec_command event")
-            self.events.emit("exec_command", function_name, parameters_dict)
+            self.events.emit(ServerEvents.exec_command, function_name, parameters_dict)
             start_time: float = time.time()
 
             while self.executor_reply is None:
@@ -432,7 +432,7 @@ class Server:
         try:
             return_value: Any = function(**parameters_dict)
             success: bool = True
-            self.events.emit("command", function_name, parameters_dict)
+            self.events.emit(ServerEvents.command, function_name, parameters_dict)
         except Exception as err:
             trace: str = str(traceback.format_exc())
             return_value = trace
@@ -477,6 +477,7 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         
         self.skyhook_server = skyhook_server
         self.reply_with_auto_close = reply_with_auto_close
+        self.quiet = False
         super().__init__(request, client_address, server)
 
     def do_GET(self) -> None:
@@ -537,6 +538,10 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         else:
             pass
         self.end_headers()
+
+    def log_message(self, fmt, *args):
+        if not self.quiet:
+            super().log_message(fmt, *args)
 
 
 def port_in_use(port_number: int, host: str = "127.0.0.1", timeout: float = 0.125) -> bool:
@@ -603,7 +608,7 @@ def start_server_in_thread(
     def kill_thread_callback(message: str) -> None:
         logger.info("\nShyhook server thread was killed")
     
-    skyhook_server.events.connect("is_terminated", kill_thread_callback)
+    skyhook_server.events.connect(ServerEvents.is_terminated, kill_thread_callback)
     
     thread: threading.Thread = threading.Thread(target=skyhook_server.start_listening)
     thread.daemon = True
@@ -674,7 +679,7 @@ def start_executor_server_in_thread(
             executor = GenericMainThreadExecutor(skyhook_server)
     
     # Connect the exec_command event to the executor's execute method
-    skyhook_server.events.connect("exec_command", executor.execute)
+    skyhook_server.events.connect(ServerEvents.exec_command, executor.execute)
     
     def kill_thread_callback(message: str) -> None:
         logger.info("\nSkyhook server thread was killed")
