@@ -12,7 +12,7 @@ setuptools.setup(
     author="Niels Vaes",
     author_email="nielsvaes@gmail.com",
     description="Engine and DCC communication system",
-    long_description="Engine and DCC communication system",
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/EmbarkStudios/skyhook",
     install_requires=['requests'],
@@ -32,5 +32,14 @@ setuptools.setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
-    ]
+        "License :: OSI Approved :: MIT License",
+        "Development Status :: 5 - Production/Stable",
+    ],
+    license="MIT",
+    keywords='engine dcc communication system',
+    project_urls={
+        'Homepage': 'https://github.com/EmbarkStudios/skyhook',
+        'Documentation': 'https://github.com/EmbarkStudios/skyhook/wiki',
+        'Issue Tracker': 'https://github.com/EmbarkStudios/skyhook/issues',
+    },
 )
