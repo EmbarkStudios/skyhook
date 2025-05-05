@@ -1,9 +1,15 @@
+"""
+Just some examples to help you get on your way with adding in functionality. 
+
+"""
+
+
 try:
     import bpy
 except:
     pass
 
-def make_cubey():
+def make_cube():
     try:
         with bpy.context.temp_override(**__get_window_ctx()):
             bpy.ops.mesh.primitive_cube_add(location=(0, 0, 0))
