@@ -77,3 +77,13 @@ class UnrealTypes:
     TEXTURE2D = "Texture2D"
     MATERIAL = "Material"
     MATERIALINSTANCE = "MaterialInstance"
+
+
+class ServerEvents:
+    """
+    
+    """
+    is_terminated = "is_terminated"
+    exec_command  = "exec_command"
+    command       = "command"
+    
