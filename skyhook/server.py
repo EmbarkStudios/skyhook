@@ -278,8 +278,9 @@ class Server:
                 self.__loaded_modules.append(mod)
                 logger.info(f"Added {mod}")
                 logger.info(self.__loaded_modules)
-        except:
+        except Exception as err:
             logger.error(f"Failed to hotload: {module_name}")
+            logger.error(err)
 
     def unload_modules(self, module_name: str, is_skyhook_module: bool = True) -> None:
         """
