@@ -20,16 +20,18 @@ The current mainline version is for Python 3.6 and up.
 
 SkyHook consist of 2 parts that can, but don’t have to, work together. There’s a client and a server. The server is just a very simple HTTP server that takes JSON requests. It parses those requests and tries to execute what was in them. The client just makes a a POST request to the server with a JSON payload. This is why you can basically use anything that’s able to do so as a client. Could be in a language other than Python, or even just webpage or mobile application.
 
+# Release 3.0
+I removed dependencies on PySide altogether, since they were causing unnecessary bloat to the package. 
+
+# Quick Start
+Some quick start examples to help you get on your way. 
+
 ## Pip installing
 
 You should be able to pip install this package like this:
 ```batch
 pip install --upgrade git+https://github.com/EmbarkStudios/skyhook
 ```
-
-# Quick Start
-
-Some quick start examples to help you get on your way. 
 
 ## Maya
 Let's say you have a file called `skyhook_commands.py` that is available in `sys.path` inside of Maya. The following are some example functions you could have:
@@ -292,7 +294,7 @@ Since "this will just work", you can basically always just return a string like 
 
 ## Complete example of a `skyhook_commands.py` file in Unreal
 
-Here's a short snippet of a skyhook_commands.py to help you get on your way
+Here's a short snippet of a `skyhook_commands.py` to help you get on your way
 
 ```python
 import unreal
