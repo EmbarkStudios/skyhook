@@ -186,7 +186,8 @@ class Server:
         port: Optional[int] = None, 
         load_modules: List[str] = [], 
         use_main_thread_executor: bool = False, 
-        echo_response: bool = True
+        echo_response: bool = True,
+        only_allow_localhost_connections: bool = True
     ) -> None:
         
         self.events: EventEmitter = EventEmitter()
@@ -197,6 +198,8 @@ class Server:
         else:
             self.port = self.__get_host_program_port(host_program)
         
+        self.server_address = "127.0.0.1" if only_allow_localhost_connections else "0.0.0.0"
+        
         self.__host_program: Optional[str] = host_program
         self.__keep_running: bool = True
         self.__use_main_thread_executor: bool = use_main_thread_executor
@@ -206,7 +209,9 @@ class Server:
         self.__loaded_modules.append(core)
         
         for module_name in load_modules:
-            self.hotload_module(module_name)
+            if not self.hotload_module(module_name): # first try to load it from the skyhook.modules package
+                self.hotload_module(module_name, is_skyhook_module=False) # should that fail, try again as a non skyhook.modules module
+                    
 
     def start_listening(self) -> None:
         """
@@ -218,7 +223,7 @@ class Server:
         def handler(*args: Any) -> None:
             SkyHookHTTPRequestHandler(skyhook_server=self, *args)
 
-        self.__http_server = HTTPServer(("127.0.0.1", self.port), handler)
+        self.__http_server = HTTPServer((self.server_address, self.port), handler)
         logger.info(f"Started SkyHook on port: {self.port}")
         while self.__keep_running:
             self.__http_server.handle_request()
@@ -278,9 +283,12 @@ class Server:
                 self.__loaded_modules.append(mod)
                 logger.info(f"Added {mod}")
                 logger.info(self.__loaded_modules)
+            return True
+        
         except Exception as err:
             logger.error(f"Failed to hotload: {module_name}")
             logger.error(err)
+            return False
 
     def unload_modules(self, module_name: str, is_skyhook_module: bool = True) -> None:
         """
@@ -586,7 +594,8 @@ def start_server_in_thread(
     host_program: str = "", 
     port: Optional[int] = None, 
     load_modules: List[str] = [], 
-    echo_response: bool = False
+    echo_response: bool = False,
+    only_allow_localhost_connections: bool = True
 ) -> List[Optional[Union[threading.Thread, Server]]]:
     """
     Starts a server in a separate thread. 
@@ -595,16 +604,19 @@ def start_server_in_thread(
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
+    :param only_allow_localhost_connections: *bool* if set to false, also allow connections from other clients on the network
     :return: *List* containing Thread and Server or None values if server couldn't start
     """
     if host_program != "":
         port = getattr(Ports, host_program)
 
-    if port_in_use(port):
+    host = "127.0.0.1" if only_allow_localhost_connections else "0.0.0.0"
+    if port_in_use(port, host):
         logger.error(f"Port {port} is already in use, can't start server")
         return [None, None]
 
-    skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
+    skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules, 
+                                    echo_response=echo_response, only_allow_localhost_connections=only_allow_localhost_connections)
     
     def kill_thread_callback(message: str) -> None:
         logger.info("\nShyhook server thread was killed")
@@ -624,7 +636,8 @@ def start_executor_server_in_thread(
     load_modules: List[str] = [], 
     echo_response: bool = False, 
     executor: Optional[GenericMainThreadExecutor] = None,
-    executor_name: Optional[str] = None
+    executor_name: Optional[str] = None,
+    only_allow_localhost_connections: bool = True
 ) -> List[Optional[Union[threading.Thread, GenericMainThreadExecutor, Server]]]:
     """
     Starts a server in a thread, but moves all executing functionality to a MainThreadExecutor object. Use this
@@ -636,6 +649,7 @@ def start_executor_server_in_thread(
     :param echo_response: *bool* print the response the server is sending back
     :param executor: Optional executor instance to use
     :param executor_name: Name of an executor to use, for example "maya" or "blender"
+    :param only_allow_localhost_connections: *bool* if set to false, also allow connections from other clients on the network
     :return: *List* containing Thread, MainThreadExecutor and Server or None values if server couldn't start
     """
     if host_program != "":
@@ -644,12 +658,14 @@ def start_executor_server_in_thread(
     if port is None:
         port = getattr(Ports, Constants.undefined)
     
-    if port_in_use(port):
+    host = "127.0.0.1" if only_allow_localhost_connections else "0.0.0.0"
+    if port_in_use(port, host):
         logger.error(f"Port {port} is already in use, can't start server")
         return [None, None, None]
 
     skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules,
-                            use_main_thread_executor=True, echo_response=echo_response)
+                                    use_main_thread_executor=True, echo_response=echo_response, 
+                                    only_allow_localhost_connections=only_allow_localhost_connections)
     
     executor_mapping: Dict[str, Type[GenericMainThreadExecutor]] = {
         HostPrograms.maya: MayaExecutor,
@@ -699,7 +715,8 @@ def start_blocking_server(
     host_program: str = "", 
     port: Optional[int] = None, 
     load_modules: List[str] = [], 
-    echo_response: bool = False
+    echo_response: bool = False,
+    only_allow_localhost_connections: bool = True
 ) -> Optional[Server]:
     """
     Starts a server in the main thread. This will block your application. Use this when you don't care about your
@@ -709,6 +726,7 @@ def start_blocking_server(
     :param port: *int* port override
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
+    :param only_allow_localhost_connections: *bool* if set to false, also allow connections from other clients on the network
     :return: Server instance or None if server couldn't start
     """
     if host_program != "":
@@ -717,10 +735,13 @@ def start_blocking_server(
     if port is None:
         port = getattr(Ports, Constants.undefined)
 
-    if port_in_use(port):
+    host = "127.0.0.1" if only_allow_localhost_connections else "0.0.0.0"
+    if port_in_use(port, host):
         logger.error(f"Port {port} is already in use, can't start server")
         return None
 
-    skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules, echo_response=echo_response)
+    skyhook_server: Server = Server(host_program=host_program, port=port, 
+                                    load_modules=load_modules, echo_response=echo_response,
+                                    only_allow_localhost_connections=only_allow_localhost_connections)
     skyhook_server.start_listening()
     return skyhook_server                
