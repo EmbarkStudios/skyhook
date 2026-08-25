@@ -8,6 +8,7 @@ import types
 import json
 import traceback
 import urllib.parse
+from pathlib import Path
 
 from datetime import datetime
 from importlib import reload
@@ -17,6 +18,7 @@ from typing import Any, Dict, List, Optional, TypeVar, Union, Callable, Type
 from .constants import Constants, Results, ServerCommands, Errors, Ports, HostPrograms, ServerEvents
 from .modules import core
 from .logger import Logger
+from .responses import HtmlResponse, RawGetResponse
 
 logger = Logger()
 
@@ -195,11 +197,15 @@ class Server:
             load_modules: List[str] = [],
             use_main_thread_executor: bool = False,
             echo_response: bool = True,
-            only_allow_localhost_connections: bool = True
+            only_allow_localhost_connections: bool = True,
+            html_origin_allowlist_provider: Optional[Callable[[], List[str]]] = None,
+            raw_get_handler: Optional[Callable[[str], Optional[RawGetResponse]]] = None,
     ) -> None:
 
         self.events: EventEmitter = EventEmitter()
         self.executor_reply: Optional[Dict[str, Any]] = None
+        self.html_origin_allowlist_provider: Optional[Callable[[], List[str]]] = html_origin_allowlist_provider
+        self.raw_get_handler: Optional[Callable[[str], Optional[RawGetResponse]]] = raw_get_handler
 
         if port:
             self.port: int = port
@@ -347,7 +353,7 @@ class Server:
 
         return function_not_found
 
-    def filter_and_execute_function(self, function_name: str, parameters_dict: Dict[str, Any]) -> bytes:
+    def filter_and_execute_function(self, function_name: str, parameters_dict: Dict[str, Any]) -> Union[bytes, HtmlResponse]:
         """
         This function decides whether or the function call should come from one of the loaded modules or from the server.
         Every server function should start with SKY_
@@ -356,12 +362,16 @@ class Server:
 
         :param function_name: Name of the function to execute
         :param parameters_dict: Dictionary of parameters to pass to the function
-        :return: JSON response as bytes
+        :return: JSON response as bytes, or an HtmlResponse if the handler returned one
         """
         if function_name in dir(ServerCommands):
             result_json: Dict[str, Any] = self.__process_server_command(function_name, parameters_dict)
         else:
-            result_json = self.__process_module_command(function_name, parameters_dict)
+            result = self.__process_module_command(function_name, parameters_dict)
+            if isinstance(result, HtmlResponse):
+                self.executor_reply = None
+                return result
+            result_json = result
 
         self.executor_reply = None
         return json.dumps(result_json).encode()
@@ -422,7 +432,7 @@ class Server:
 
         return result_json
 
-    def __process_module_command(self, function_name: str, parameters_dict: Dict[str, Any], timeout: float = 10.0) -> Dict[str, Any]:
+    def __process_module_command(self, function_name: str, parameters_dict: Dict[str, Any], timeout: float = 10.0) -> Union[Dict[str, Any], HtmlResponse]:
         """
         Processes a command if the function in it was a module function.
 
@@ -431,7 +441,7 @@ class Server:
         :param function_name: Name of the function to execute
         :param parameters_dict: Dictionary of parameters for the function
         :param timeout: Timeout in seconds for waiting for executor reply
-        :return: Result JSON dictionary
+        :return: Result JSON dictionary, or HtmlResponse if the handler returned one
         """
         if self.__use_main_thread_executor:
             logger.debug("Emitting exec_command event")
@@ -456,6 +466,8 @@ class Server:
             return_value: Any = function(**parameters_dict)
             success: bool = True
             self.events.emit(ServerEvents.command, function_name, parameters_dict)
+            if isinstance(return_value, HtmlResponse):
+                return return_value
         except Exception as err:
             trace: str = str(traceback.format_exc())
             return_value = trace
@@ -512,19 +524,81 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/favicon.ico":
             return
 
+        # Static file serving — short-circuit before any command processing
+        if self.path.startswith("/static/") and self.skyhook_server.static_dir is not None:
+            filename: str = self.path[len("/static/"):]
+            file_path: Path = (self.skyhook_server.static_dir / filename).resolve()
+            static_root: Path = self.skyhook_server.static_dir.resolve()
+            if not str(file_path).startswith(str(static_root)):
+                self.send_response(403)
+                self.end_headers()
+                return
+            if not file_path.is_file():
+                self.send_response(404)
+                self.end_headers()
+                return
+            content_type, _ = mimetypes.guess_type(str(file_path))
+            if content_type is None:
+                content_type = "application/octet-stream"
+            self.send_response(200)
+            self.send_header("Content-type", content_type)
+            self.end_headers()
+            self.wfile.write(file_path.read_bytes())
+            return
+
         data: str = urllib.parse.unquote(self.path).lstrip("/")
         parts: List[str] = data.split("&")
 
         try:
             function: str = eval(parts[0])
             parameters: Dict[str, Any] = json.loads(parts[1])
-        except NameError as err:
+        except (NameError, SyntaxError, ValueError, IndexError) as err:
+            # This GET is not a function-call dispatch. Dispatch stays the primary
+            # path; only on a parse miss do we offer the request to the app's
+            # optional raw GET handler (e.g. static-file serving).
+            if self.skyhook_server.raw_get_handler is not None:
+                raw: Optional[RawGetResponse] = self.skyhook_server.raw_get_handler(self.path)
+                if raw is not None:
+                    self.send_response(raw.status)
+                    self.send_header("Content-type", raw.content_type)
+                    self.end_headers()
+                    if raw.body:
+                        self.wfile.write(raw.body)
+                    return
             logger.warning(f"Got a GET request that I don't know what to do with")
             logger.warning(f"Request was: GET {data}")
             logger.warning(f"Error is   : {err}")
             return
 
-        command_response: bytes = self.skyhook_server.filter_and_execute_function(function, parameters)
+        # Origin allowlist pre-check for HTML handlers (skip for server commands)
+        if self.skyhook_server.html_origin_allowlist_provider is not None and function not in dir(ServerCommands):
+            fn: Callable[..., Any] = self.skyhook_server.get_function_by_name(function)
+            if getattr(fn, '__skyhook_html_handler__', False):
+                origin: str = self.headers.get('Origin') or self.headers.get('Referer', '')
+                allowlist: List[str] = self.skyhook_server.html_origin_allowlist_provider()
+                if not origin:
+                    pass  # no Origin header — allow (same-origin or non-browser caller)
+                elif allowlist and not any(origin.startswith(a) for a in allowlist):
+                    self.send_response(403)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(b"<html><body><h1>403 Forbidden</h1><p>Origin not in allowlist.</p></body></html>")
+                    return
+
+        command_response: Union[bytes, HtmlResponse] = self.skyhook_server.filter_and_execute_function(function, parameters)
+
+        # HtmlResponse dispatch — write verbatim HTML, no auto-close script
+        if isinstance(command_response, HtmlResponse):
+            self.send_response(command_response.status)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.send_header('Content-type', command_response.content_type)
+            self.end_headers()
+            self.wfile.write(command_response.body.encode('utf-8'))
+            return
+
         self.send_response_data("GET")
         self.wfile.write(bytes(f"{command_response}".encode("utf-8")))
         if self.reply_with_auto_close:
@@ -543,7 +617,7 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         function: str = json_data.get(Constants.function_name, "")
         parameters: Dict[str, Any] = json_data.get(Constants.parameters, {})
 
-        command_response: bytes = self.skyhook_server.filter_and_execute_function(function, parameters)
+        command_response: Union[bytes, HtmlResponse] = self.skyhook_server.filter_and_execute_function(function, parameters)
         self.send_response_data("POST")
         self.wfile.write(command_response)
 
