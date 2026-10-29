@@ -198,10 +198,13 @@ class Server:
             load_modules: List[str] = [],
             use_main_thread_executor: bool = False,
             echo_response: bool = True,
-            only_allow_localhost_connections: bool = True
+            only_allow_localhost_connections: bool = True,
+            allowed_origins: List[str] = []
     ) -> None:
 
         self.events: EventEmitter = EventEmitter()
+        # web pages (eg: "http://localhost:3000") allowed to call this server from a browser. Others get a 403
+        self.allowed_origins: List[str] = list(allowed_origins)
         self.executor_reply: Optional[Dict[str, Any]] = None
 
         if port:
@@ -212,6 +215,9 @@ class Server:
         ensure_valid_port(self.port)
 
         self.server_address = "127.0.0.1" if only_allow_localhost_connections else "0.0.0.0"
+        if not only_allow_localhost_connections:
+            logger.warning("SkyHook accepts unauthenticated connections from the network, anyone who can reach this "
+                           "machine can run the loaded functions")
 
         self.__host_program: Optional[str] = host_program
         self.__keep_running: bool = True
@@ -520,16 +526,23 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/favicon.ico":
             return
 
+        if not self.request_allowed():
+            return
+
         data: str = urllib.parse.unquote(self.path).lstrip("/")
-        parts: List[str] = data.split("&")
+        parts: List[str] = data.split("&", 1)
 
         try:
-            function: str = eval(parts[0])
+            # the function name is a JSON string, eg: "echo_message". Never eval() it, that's remote code execution
+            function: str = json.loads(parts[0])
             parameters: Dict[str, Any] = json.loads(parts[1])
-        except NameError as err:
+            if not isinstance(function, str) or not isinstance(parameters, dict):
+                raise ValueError("expected a function name string and a parameters object")
+        except (ValueError, IndexError) as err:
             logger.warning(f"Got a GET request that I don't know what to do with")
             logger.warning(f"Request was: GET {data}")
             logger.warning(f"Error is   : {err}")
+            self.send_error(400, "Expected /\"function_name\"&{json parameters}")
             return
 
         command_response: bytes = self.skyhook_server.filter_and_execute_function(function, parameters)
@@ -543,6 +556,9 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         """
         Handle a post request, expects a JSON object to be sent in the POST data
         """
+        if not self.request_allowed():
+            return
+
         content_length: int = int(self.headers['Content-Length'])
         post_data: bytes = self.rfile.read(content_length)
         decoded_data: str = post_data.decode('utf-8')
@@ -562,11 +578,7 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         :param request_type: *string* GET or POST
         """
         self.send_response(200)
-
-        # Add CORS headers for all responses
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_cors_headers()
 
         if request_type == "GET":
             self.send_header('Content-type', 'text/html')
@@ -580,11 +592,47 @@ class SkyHookHTTPRequestHandler(BaseHTTPRequestHandler):
         """
         Handle OPTIONS requests for CORS preflight
         """
+        if not self.request_allowed():
+            return
+
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_cors_headers()
         self.end_headers()
+
+    def request_allowed(self) -> bool:
+        """
+        Rejects requests a web page made without the user's say-so. Any site you browse to can make your browser send
+        requests to localhost, so those are only allowed from origins in the server's allowed_origins. Non-browser
+        clients (skyhook.client, requests, curl) and URLs typed into the address bar don't send these headers and pass.
+        Responds with 403 and returns False when the request is rejected.
+        """
+        origin: Optional[str] = self.headers.get("Origin")
+        if origin is not None:
+            allowed: bool = origin in self.skyhook_server.allowed_origins
+        else:
+            # cross-site requests that carry no Origin header (eg: <img src="http://127.0.0.1:65500/...">)
+            allowed = self.headers.get("Sec-Fetch-Site", "none") in ("none", "same-origin")
+
+        # DNS rebinding: a hostile domain pointed at 127.0.0.1 looks same-origin to the browser, but keeps its own Host
+        if self.skyhook_server.server_address == "127.0.0.1":
+            host: str = urllib.parse.urlsplit(f"//{self.headers.get('Host', '')}").hostname or ""
+            allowed = allowed and host in ("127.0.0.1", "localhost")
+
+        if not allowed:
+            logger.warning(f"Rejected {self.command} request from origin {origin}, host {self.headers.get('Host')}")
+            self.send_error(403, "Origin not allowed")
+        return allowed
+
+    def send_cors_headers(self) -> None:
+        """
+        Only lets the browser share responses with origins in the server's allowed_origins
+        """
+        origin: Optional[str] = self.headers.get("Origin")
+        if origin is not None and origin in self.skyhook_server.allowed_origins:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
     def log_message(self, fmt, *args):
         if not self.quiet:
@@ -636,7 +684,8 @@ def start_server_in_thread(
         port: Optional[int] = None,
         load_modules: List[str] = [],
         echo_response: bool = False,
-        only_allow_localhost_connections: bool = True
+        only_allow_localhost_connections: bool = True,
+        allowed_origins: List[str] = []
 ) -> List[Optional[Union[threading.Thread, Server]]]:
     """
     Starts a server in a separate thread. 
@@ -646,6 +695,7 @@ def start_server_in_thread(
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :param only_allow_localhost_connections: *bool* if set to false, also allow connections from other clients on the network
+    :param allowed_origins: *list* web page origins, eg "http://localhost:3000", allowed to call the server from a browser
     :return: *List* containing Thread and Server or None values if server couldn't start
     """
     if host_program != "" and port is None:
@@ -661,7 +711,8 @@ def start_server_in_thread(
 
     skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules,
                                     echo_response=echo_response,
-                                    only_allow_localhost_connections=only_allow_localhost_connections)
+                                    only_allow_localhost_connections=only_allow_localhost_connections,
+                                    allowed_origins=allowed_origins)
 
     def kill_thread_callback(message: str) -> None:
         logger.info(f"\nSkyhook server thread was killed with message {message}")
@@ -682,7 +733,8 @@ def start_executor_server_in_thread(
         echo_response: bool = False,
         executor: Optional[GenericMainThreadExecutor] = None,
         executor_name: Optional[str] = None,
-        only_allow_localhost_connections: bool = True
+        only_allow_localhost_connections: bool = True,
+        allowed_origins: List[str] = []
 ) -> List[Optional[Union[threading.Thread, GenericMainThreadExecutor, Server]]]:
     """
     Starts a server in a thread, but moves all executing functionality to a MainThreadExecutor object. Use this
@@ -695,6 +747,7 @@ def start_executor_server_in_thread(
     :param executor: Optional executor instance to use
     :param executor_name: Name of an executor to use, for example "maya" or "blender"
     :param only_allow_localhost_connections: *bool* if set to false, also allow connections from other clients on the network
+    :param allowed_origins: *list* web page origins, eg "http://localhost:3000", allowed to call the server from a browser
     :return: *List* containing Thread, MainThreadExecutor and Server or None values if server couldn't start
     """
     if host_program != "" and port is None:
@@ -710,7 +763,8 @@ def start_executor_server_in_thread(
 
     skyhook_server: Server = Server(host_program=host_program, port=port, load_modules=load_modules,
                                     use_main_thread_executor=True, echo_response=echo_response,
-                                    only_allow_localhost_connections=only_allow_localhost_connections)
+                                    only_allow_localhost_connections=only_allow_localhost_connections,
+                                    allowed_origins=allowed_origins)
 
     executor_mapping: Dict[str, Type[GenericMainThreadExecutor]] = {
         HostPrograms.maya: MayaExecutor,
@@ -761,7 +815,8 @@ def start_blocking_server(
         port: Optional[int] = None,
         load_modules: List[str] = [],
         echo_response: bool = False,
-        only_allow_localhost_connections: bool = True
+        only_allow_localhost_connections: bool = True,
+        allowed_origins: List[str] = []
 ) -> Optional[Server]:
     """
     Starts a server in the main thread. This will block your application. Use this when you don't care about your
@@ -772,6 +827,7 @@ def start_blocking_server(
     :param load_modules: *list* modules to load
     :param echo_response: *bool* print the response the server is sending back
     :param only_allow_localhost_connections: *bool* if set to false, also allow connections from other clients on the network
+    :param allowed_origins: *list* web page origins, eg "http://localhost:3000", allowed to call the server from a browser
     :return: Server instance or None if server couldn't start
     """
     if host_program != "" and port is None:
@@ -787,6 +843,7 @@ def start_blocking_server(
 
     skyhook_server: Server = Server(host_program=host_program, port=port,
                                     load_modules=load_modules, echo_response=echo_response,
-                                    only_allow_localhost_connections=only_allow_localhost_connections)
+                                    only_allow_localhost_connections=only_allow_localhost_connections,
+                                    allowed_origins=allowed_origins)
     skyhook_server.start_listening()
     return skyhook_server                

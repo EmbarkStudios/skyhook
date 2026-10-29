@@ -8,7 +8,7 @@ data_files_to_include = ["*.png"]
 
 setuptools.setup(
     name="skyhook",
-    version="3.0.6",
+    version="3.0.7",
     author="Niels Vaes",
     author_email="nielsvaes@gmail.com",
     description="Engine and DCC communication system",

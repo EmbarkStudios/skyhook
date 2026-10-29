@@ -1,3 +1,4 @@
+import ast
 import pprint
 from datetime import datetime
 
@@ -253,7 +254,8 @@ class UnrealClient(Client):
             # UE 4.26: Returning an unreal.Array() that's not empty crashes the editor
             # (https://udn.unrealengine.com/s/question/0D52L00005KOA24SAH/426-crashes-when-trying-to-return-an-unrealarray-over-web-remote-control-from-python)
             # The (ugly) workaround for this is to return the list as a string eg "['/Game/Content/file', '/Game/Content/file2']"
-            # Then we try to eval the string here, if it succeeds, we'll have the list.
+            # Then we try to literal_eval the string here, if it succeeds, we'll have the list. Never plain eval(), that
+            # would let whoever answers on this port run code on the client.
 
             # However!
             # This actually serves another purpose. It's much easier to return a dictionary from Unreal as a string compared
@@ -270,7 +272,7 @@ class UnrealClient(Client):
 
             # On top of that, stringifying a dict also just lets you return a bunch of values that are not all the same type.
             # As long as it can get serialized into a JSON object, it will come out this end as a proper dictionary.
-            evalled_return_value = eval(response.get(Results.return_value))
+            evalled_return_value = ast.literal_eval(response.get(Results.return_value))
             response = {Results.return_value: evalled_return_value}
         except:
             pass

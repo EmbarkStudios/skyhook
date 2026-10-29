@@ -42,22 +42,17 @@ def raw_maya(command, args=[], kwargs={}):
     :return: *string* of whatever the command returned in Maya
     """
     kwargs = dict((str(k), v) for k, v in kwargs.items())
-    func = eval(command)
+    # look the command up by name instead of eval()-ing it, so the command string can't be arbitrary Python
+    module_name, _, func_name = command.partition(".")
+    modules = {"pm": pm, "cmds": cmds}
+    if module_name not in modules or not func_name or func_name.startswith("_"):
+        raise ValueError(f"command must look like pm.<command> or cmds.<command>, got: {command}")
+    func = getattr(modules[module_name], func_name)
     print(kwargs)
 
 
     result = func(*args, **kwargs)
     return str(result)
-
-
-def execute_python(python_script):
-    """
-    Executes a complete Python script
-
-    :param python_script: *string* Python code
-    :return: None
-    """
-    exec(python_script)
 
 
 def warning(message):
